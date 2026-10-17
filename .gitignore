@@ -1,0 +1,13 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.env
+
+# Personal data and tokens from the the university app research
+research/hseapp/captures/
+
+# Service runtime state
+service/data/

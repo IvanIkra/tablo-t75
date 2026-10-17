@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablo emulator</title>
+<link rel="stylesheet" href="/emu/static/emu.css">
+</head>
+<body>
+<main>
+  <div class="device" id="device">
+    <canvas id="screen" width="800" height="480" aria-label="Tablo screen"></canvas>
+    <div class="keys" id="keys"></div>
+  </div>
+
+  <section class="panel">
+    <div class="row">
+      <span id="conn" class="badge">connecting…</span>
+      <span id="frameinfo" class="muted"></span>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="opt-offline"> service unreachable</label>
+      <label><input type="checkbox" id="opt-rects" checked> show partial refresh areas</label>
+      <label><input type="checkbox" id="opt-paper" checked> paper colors</label>
+      <label>scale <select id="opt-scale"><option value="fit" selected>fit</option><option>1</option><option>1.5</option><option>2</option></select></label>
+    </div>
+    <div class="row muted">Keys 1–8 press the buttons; hold ≥ long-press time for a long press.</div>
+    <details>
+      <summary>Protocol log</summary>
+      <ol id="log" reversed></ol>
+    </details>
+  </section>
+</main>
+<script src="/emu/static/emu.js"></script>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tablo T75 renders</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #ebe9e2; font-family: Inter, -apple-system, Arial, sans-serif; color: #1c1c1a; }
+.scene { position: relative; }
+.face { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
+.e7{width:800px;height:480px;background:#f4f3ee;color:#111;display:flex;flex-direction:column;overflow:hidden;font-size:16px;font-family:Inter,Arial,sans-serif}
+.e7 .hd{height:100px;display:flex;align-items:center;gap:14px;padding:0 14px;border-bottom:2px solid #111;flex:none}
+.e7 .hs{flex:1;align-self:stretch;margin:12px 0;border:2px solid #111;display:grid;grid-template-columns:repeat(8,1fr);align-items:center}
+.e7 .hs>div{text-align:center;font-size:15px;line-height:1.15}
+.e7 .hs b{font-weight:600;font-size:16px}
+.e7 .mid{flex:1;min-height:0;display:grid;grid-template-columns:34% 36% 30%}
+.e7 .col7{border-right:2px solid #111;display:flex;flex-direction:column;min-width:0}
+.e7 .col7:last-child{border-right:none}
+.e7 .sub{flex:1;padding:8px 12px 0;min-height:0;overflow:hidden}
+.e7 .sub+.sub{border-top:2px solid #111}
+.e7 .h{font-weight:600;border-bottom:2px solid #111;padding-bottom:3px;margin-bottom:5px;display:flex;justify-content:space-between}
+.e7 .h span+span{font-weight:400}
+.e7 .r{display:flex;justify-content:space-between;line-height:24px;white-space:nowrap;gap:8px}
+.e7 .r b{font-weight:600}
+.e7 .inv{background:#111;color:#f4f3ee;margin:0 -6px;padding:0 6px}
+.e7 .ph{height:8px;background:#bdbcb6;border-radius:2px;margin:9px 0}
+.e7 .bb{flex:none;display:grid;grid-template-columns:repeat(8,1fr);height:52px;border-top:2px solid #111}
+.e7 .bb>div{display:flex;align-items:center;justify-content:center;border-left:2px solid #111}
+.e7 .bb>div:first-child{border-left:none}
+.e7 .bb .on{background:#111;color:#f4f3ee}
+.e7 .bb i{font-size:28px}
+.lbl { font-size: 16px; font-weight: 600; text-align: center; margin-top: 12px; }
+.sublbl { font-size: 13px; color: #6b6a66; text-align: center; margin-top: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// ---------- screen ----------
+const cloud='<path d="M4.6 8 H11.4 A2.6 2.6 0 0 0 11.4 2.8 A3.6 3.6 0 0 0 4.6 3.6 A2.2 2.2 0 0 0 4.6 8 Z"/>';
+const rain=xs=>xs.map(x=>`<line x1="${x+0.8}" y1="9.8" x2="${x-0.4}" y2="13"/>`).join('');
+const I={moon:'<path d="M9 1.2 A4.3 4.3 0 1 0 12.6 7.6 A3.4 3.4 0 0 1 9 1.2 Z"/>',cloud:cloud,r1:cloud+rain([8]),r2:cloud+rain([6,10]),r3:cloud+rain([4.5,8,11.5])};
+const ic=(k,w)=>`<svg width="${w}" height="${Math.round(w*14/16)}" viewBox="0 0 16 14" fill="none" stroke="#111" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto">${I[k]}</svg>`;
+const HR=[['19','cloud','+7'],['20','r1','+7'],['21','r2','+6'],['22','r3','+6'],['23','r2','+5'],['00','r1','+5'],['01','cloud','+4'],['02','cloud','+4']];
+const BTN=[['power',0],['bulb',1],['lamp',1],['desk',0],['sparkles',1],['hanger',0],['wifi',0],['refresh',0]];
+const screen=()=>`<div class="e7">
+ <div class="hd">
+  <div style="flex:none"><div style="font-size:64px;font-weight:600;line-height:1;letter-spacing:-2px">18:42</div><div style="font-size:17px;margin-top:6px">Wed, Oct 14 · wk 7</div></div>
+  <div style="flex:none;border:2px solid #111;padding:6px 10px;display:flex;align-items:center;gap:8px">${ic('r2',42)}<div><div style="font-size:30px;font-weight:600;line-height:1">+9°</div><div style="font-size:15px;margin-top:2px">feels +6°</div></div></div>
+  <div style="flex:1;align-self:stretch;display:flex;flex-direction:column;padding:5px 0 7px"><div style="height:18px;margin-bottom:3px;display:flex;justify-content:flex-end;align-items:center;gap:9px;font-size:13px;line-height:1"><i class="ti ti-antenna-bars-4" style="font-size:17px"></i><i class="ti ti-cloud-check" style="font-size:17px"></i><i class="ti ti-home-check" style="font-size:17px"></i><span>synced 18:41</span></div><div class="hs" style="margin:0;flex:1">${HR.map(h=>`<div>${h[0]}<div style="margin:1px 0">${ic(h[1],20)}</div><b>${h[2]}</b></div>`).join('')}</div></div>
+ </div>
+ <div class="mid">
+  <div class="col7">
+   <div class="sub"><div class="h"><span>Deadlines</span></div>
+    <div class="r inv"><span>Calc HW 5</span><b>tomorrow</b></div>
+    <div class="r"><span>Physics lab</span><span>Oct 20</span></div>
+    <div class="r"><span>English essay</span><span>Oct 23</span></div>
+   </div>
+   <div class="sub"><div class="h"><span>Grades</span></div>
+    <div class="r"><span>Calc test</span><b>9</b></div>
+    <div class="r"><span>English quiz</span><b>7</b></div>
+    <div class="r"><span>Physics lab</span><b>5</b></div>
+   </div>
+  </div>
+  <div class="col7"><div class="sub"><div class="h"><span>News</span><span>3</span></div>
+    <div class="ph" style="width:96%"></div><div class="ph" style="width:72%"></div>
+    <div class="ph" style="width:92%;margin-top:22px"></div><div class="ph" style="width:58%"></div>
+    <div class="ph" style="width:88%;margin-top:22px"></div><div class="ph" style="width:66%"></div>
+  </div></div>
+  <div class="col7">
+   <div class="sub"><div class="h"><span>Classes</span><span>tomorrow</span></div>
+    <div class="r"><span>09:00</span><span>Calc</span></div>
+    <div class="r"><span>10:45</span><span>Physics</span></div>
+    <div class="r"><span>18:30</span><span>English</span></div>
+   </div>
+   <div class="sub"><div class="h"><span>Home</span></div>
+    <div class="r"><span>22.4° · 45%</span></div>
+    <div class="r"><span>lights</span><b>3 of 5</b></div>
+    <div class="r"><span>printer</span><span>idle</span></div>
+   </div>
+  </div>
+ </div>
+ <div class="bb">${BTN.map(b=>`<div class="${b[1]?'on':''}"><i class="ti ti-${b[0]}"></i></div>`).join('')}</div>
+</div>`;
+
+// ---------- dimensions from tablo.scad (mm) ----------
+const D=4.9;                       // px per mm (800 px screen = 163.2 mm)
+const W=185, H=146, T=15, A=15*Math.PI/180;
+const actX0=(W-163.2)/2, topBezel=12;
+const keyCyFromTop=H-15.1, pitch=163.2/8;
+const usbY=60+32.5, swY=60+13.8, usbZ=8.8;          // side ports: height from bottom, depth from front
+const khDx=52.5, khFromTop=20, khLen=8;
+const lockFromBottom=(H-20)+khLen;                   // leg screws when locked
+const px=v=>v*D;
+const dot=(x,y,d,bg,extra='')=>`<div style="position:absolute;left:${x-d/2}px;top:${y-d/2}px;width:${d}px;height:${d}px;border-radius:50%;background:${bg};${extra}"></div>`;
+
+const capRow=()=>BTN.map((b,i)=>{const cx=px(actX0+pitch*(i+0.5)), cy=px(keyCyFromTop);
+  return `<div style="position:absolute;left:${cx-42}px;top:${cy-31.5}px;width:84px;height:63px;border-radius:32px;background:#202020;box-shadow:inset 0 0 0 2px #2c2c2a"></div>
+          <div style="position:absolute;left:${cx-40}px;top:${cy-29.5}px;width:80px;height:59px;border-radius:30px;background:#2a2a28;border:1px solid #4a4a46;display:flex;align-items:center;justify-content:center">${i===0?'<div style="width:22px;height:22px;border-radius:11px;background:#232321;box-shadow:inset 0 1px 2px #111"></div>':''}</div>`;}).join('');
+const frontHTML=`<div style="width:${px(W)}px;height:${px(H)}px;background:#3a3a38;position:relative;box-shadow:inset 0 0 0 ${px(1.5)}px #454542">
+  <div style="position:absolute;left:${px(actX0)-3}px;top:${px(topBezel)-3}px;padding:3px;background:#2e2e2c">${screen()}</div>
+  ${capRow()}
+</div>`;
+const bw=px(W), bh=px(H);
+const backHTML=`<div style="width:${bw}px;height:${bh}px;background:#363634;position:relative;box-shadow:inset 0 0 0 ${px(1)}px #403f3c">
+  ${[[px(5.5),px(5)],[bw-px(5.5),px(5)],[px(5.5),bh-px(5)],[bw-px(5.5),bh-px(5)]].map(p=>dot(p[0],p[1],px(5.6),'#2a2a28','box-shadow:inset 0 0 0 4px #303030')).join('')}
+  ${[W/2-khDx,W/2+khDx].map(x=>dot(px(x),px(khFromTop),px(9),'#1d1d1b')+`<div style="position:absolute;left:${px(x)-px(2.25)}px;top:${px(khFromTop-khLen)}px;width:${px(4.5)}px;height:${px(khLen)}px;background:#1d1d1b;border-radius:${px(2.25)}px ${px(2.25)}px 0 0"></div>`).join('')}
+  ${[0,1,2,3,4,5].map(i=>`<div style="position:absolute;left:${px(15+i*8)-px(1.2)}px;top:${px(H-102)}px;width:${px(2.4)}px;height:${px(30)}px;border-radius:${px(1.2)}px;background:#1d1d1b"></div>`).join('')}
+</div>`;
+const sideW=px(T), sideH=px(H);
+const rightHTML=`<div style="width:${sideW}px;height:${sideH}px;background:#2f2f2d;position:relative">
+  <div style="position:absolute;left:${px(usbZ-3.25)}px;top:${px(H-usbY-6.25)}px;width:${px(6.5)}px;height:${px(12.5)}px;border-radius:${px(3.25)}px;background:#151514;display:flex;align-items:center;justify-content:center"><div style="width:${px(3.2)}px;height:${px(8.8)}px;border-radius:${px(1.4)}px;background:#9a9a96;box-shadow:inset 0 0 0 3px #b8b8b4"><div style="margin:${px(1.2)}px auto;width:${px(1)}px;height:${px(6.4)}px;background:#3a3a38;border-radius:2px"></div></div></div>
+  <div style="position:absolute;left:${px(usbZ-2)}px;top:${px(H-swY-4)}px;width:${px(4)}px;height:${px(8)}px;border-radius:${px(2)}px;background:#151514"><div style="margin:${px(1.5)}px auto 0;width:${px(1.6)}px;height:${px(2.6)}px;background:#cfcfcf"></div></div>
+</div>`;
+
+// ---------- math ----------
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]], mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const rotX=(v,a)=>[v[0], v[1]*Math.cos(a)+v[2]*Math.sin(a), -v[1]*Math.sin(a)+v[2]*Math.cos(a)];
+const LIGHT=(()=>{const l=[-0.45,-0.55,0.7];const n=Math.hypot(...l);return l.map(x=>x/n);})();
+const lum=n=>0.62+0.38*Math.max(0,n[0]*LIGHT[0]+n[1]*LIGHT[1]+n[2]*LIGHT[2]);
+const shadeHex=(hex,k)=>{const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)*k);return `rgb(${c.map(x=>Math.min(255,Math.round(x))).join(',')})`;};
+
+// local coords: x across (0 = left seen from the front), y depth (0 = front face, T = back face), z up
+function body(){
+  return [
+    {P0:[0,0,H],U:[1,0,0],V:[0,0,-1],w:W,h:H,n:[0,-1,0],html:frontHTML},
+    {P0:[W,T,H],U:[-1,0,0],V:[0,0,-1],w:W,h:H,n:[0,1,0],html:backHTML},
+    {P0:[0,T,H],U:[1,0,0],V:[0,-1,0],w:W,h:T,n:[0,0,1],color:'#41413e'},
+    {P0:[0,0,0],U:[1,0,0],V:[0,1,0],w:W,h:T,n:[0,0,-1],color:'#2c2c2a'},
+    {P0:[W,0,H],U:[0,1,0],V:[0,0,-1],w:T,h:H,n:[1,0,0],html:rightHTML},
+    {P0:[0,T,H],U:[0,-1,0],V:[0,0,-1],w:T,h:H,n:[-1,0,0],color:'#353533'},
+  ];
+}
+function prism(prof,x0,x1,color){
+  const cy=prof.reduce((s,p)=>s+p[0],0)/prof.length, cz=prof.reduce((s,p)=>s+p[1],0)/prof.length, faces=[];
+  for(let i=0;i<prof.length;i++){
+    const p=prof[i], q=prof[(i+1)%prof.length], dy=q[0]-p[0], dz=q[1]-p[1], len=Math.hypot(dy,dz);
+    let n=[0,dz/len,-dy/len]; if(n[1]*((p[0]+q[0])/2-cy)+n[2]*((p[1]+q[1])/2-cz)<0) n=[0,-n[1],-n[2]];
+    faces.push({P0:[x0,p[0],p[1]],U:[1,0,0],V:[0,dy/len,dz/len],w:x1-x0,h:len,n,color});
+  }
+  const ys=prof.map(p=>p[0]), zs=prof.map(p=>p[1]), ymin=Math.min(...ys), ymax=Math.max(...ys), zmax=Math.max(...zs), zmin=Math.min(...zs);
+  faces.push({P0:[x1,ymin,zmax],U:[0,1,0],V:[0,0,-1],w:ymax-ymin,h:zmax-zmin,n:[1,0,0],color,clip:prof.map(p=>[p[0]-ymin,zmax-p[1]])});
+  faces.push({P0:[x0,ymax,zmax],U:[0,-1,0],V:[0,0,-1],w:ymax-ymin,h:zmax-zmin,n:[-1,0,0],color,clip:prof.map(p=>[ymax-p[0],zmax-p[1]])});
+  return faces;
+}
+// rear leg from tablo.scad: bar 124×20×6 at the lock height, fin 6 mm, contact 40..138, foot 62..86 out
+const LEGC='#3d3d3a';
+const deskS=n=>n*Math.tan(A);
+function leg(){
+  const bar=prism([[T,lockFromBottom-10],[T+6,lockFromBottom-10],[T+6,lockFromBottom+10],[T,lockFromBottom+10]],W/2-62,W/2+62,LEGC);
+  const fin=prism([[T,40],[T,138],[T+86,deskS(86)],[T+62,deskS(62)]],W/2-3,W/2+3,LEGC);
+  return [bar,fin];
+}
+const place=(faces,a,t)=>faces.map(f=>({...f,P0:add(rotX(f.P0,a),t),U:rotX(f.U,a),V:rotX(f.V,a),n:rotX(f.n,a)}));
+
+function scene(objs,phiDeg,thDeg,K,opts={}){
+  const p=phiDeg*Math.PI/180, h=thDeg*Math.PI/180;
+  const P=v=>{const yp=-v[0]*Math.sin(p)+v[1]*Math.cos(p); return [v[0]*Math.cos(p)+v[1]*Math.sin(p), -(v[2]*Math.cos(h)+yp*Math.sin(h))];};
+  const depth=v=>(-v[0]*Math.sin(p)+v[1]*Math.cos(p))*Math.cos(h)-v[2]*Math.sin(h);
+  const Av=[-Math.sin(p)*Math.cos(h), Math.cos(p)*Math.cos(h), -Math.sin(h)];
+  const pts=[];
+  objs.flat().forEach(f=>{[f.P0,add(f.P0,mul(f.U,f.w)),add(f.P0,mul(f.V,f.h)),add(add(f.P0,mul(f.U,f.w)),mul(f.V,f.h))].forEach(v=>pts.push(P(v)));});
+  (opts.extra||[]).forEach(v=>pts.push(P(v)));
+  const m=opts.margin??0;
+  const minX=Math.min(...pts.map(q=>q[0])), maxX=Math.max(...pts.map(q=>q[0])), minY=Math.min(...pts.map(q=>q[1])), maxY=Math.max(...pts.map(q=>q[1]));
+  const w=Math.ceil((maxX-minX)*K+2*m), hh=Math.ceil((maxY-minY)*K+2*m);
+  let out=opts.bg?`<div style="position:absolute;inset:0;background:${opts.bg}"></div>`:'';
+  const proj=v=>{const q=P(v);return [((q[0]-minX)*K+m),((q[1]-minY)*K+m)];};
+  (opts.shadows||[]).forEach((sh,i)=>{
+    const g=sh.map(P).map(q=>`${((q[0]-minX)*K+m).toFixed(1)},${((q[1]-minY)*K+m).toFixed(1)}`).join(' ');
+    out+=`<svg width="${w}" height="${hh}" style="position:absolute;left:0;top:0;overflow:visible"><defs><filter id="b${phiDeg}${thDeg}${i}" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="${K*3}"/></filter></defs><polygon points="${g}" fill="rgba(40,36,28,.26)" filter="url(#b${phiDeg}${thDeg}${i})"/></svg>`;
+  });
+  // objects are drawn far-to-near by their centre depth; faces inside an object are convex-culled
+  const ordered=objs.map(o=>{const c=o.reduce((s,f)=>add(s,add(f.P0,add(mul(f.U,f.w/2),mul(f.V,f.h/2)))),[0,0,0]);return {o,d:depth(mul(c,1/o.length))};}).sort((a,b)=>b.d-a.d);
+  for(const {o} of ordered) for(const f of o){
+    const nd=f.n[0]*Av[0]+f.n[1]*Av[1]+f.n[2]*Av[2];
+    if(nd>-1e-6) continue;
+    const og=P(f.P0), u=P(f.U), v=P(f.V), s=K/D;
+    const mat=[u[0]*s,u[1]*s,v[0]*s,v[1]*s,(og[0]-minX)*K+m,(og[1]-minY)*K+m].map(x=>x.toFixed(4)).join(',');
+    const clip=f.clip?`clip-path:polygon(${f.clip.map(c=>`${(c[0]*D).toFixed(1)}px ${(c[1]*D).toFixed(1)}px`).join(',')});`:'';
+    const k=lum(f.n);
+    const bodyH=f.html?`${f.html}<div style="position:absolute;inset:0;background:rgba(0,0,0,${(1-k)*0.5})"></div>`:`<div style="width:100%;height:100%;background:${shadeHex(f.color,k*1.08)}"></div>`;
+    out+=`<div class="face" style="width:${px(f.w)}px;height:${px(f.h)}px;transform:matrix(${mat});${clip}">${bodyH}</div>`;
+  }
+  (opts.cables||[]).forEach(c=>{
+    const d=c.pts.map(proj).map((q,i)=>(i?'L':'M')+q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
+    if(c.shadow){const sd=c.shadow.map(proj).map((q,i)=>(i?'L':'M')+q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
+      out+=`<svg width="${w}" height="${hh}" style="position:absolute;left:0;top:0;overflow:visible"><defs><filter id="cs${phiDeg}"><feGaussianBlur stdDeviation="${K*1.6}"/></filter></defs><path d="${sd}" fill="none" stroke="rgba(30,26,20,.28)" stroke-width="${K*4}" stroke-linecap="round" stroke-linejoin="round" filter="url(#cs${phiDeg})"/></svg>`;}
+    out+=`<svg width="${w}" height="${hh}" style="position:absolute;left:0;top:0;overflow:visible"><path d="${d}" fill="none" stroke="#1b1b1a" stroke-width="${K*3.6}" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="${K*1.1}" stroke-linecap="round" stroke-linejoin="round" transform="translate(${-K*0.7},${-K*0.7})"/></svg>`;
+  });
+  return {html:`<div class="scene" style="width:${w}px;height:${hh}px;overflow:hidden">${out}</div>`,w,h:hh};
+}
+
+// ---------- assemblies ----------
+// on the desk: pivot on the back-bottom edge, leaning back 15°
+const tDesk=[0, T - T*Math.cos(A), T*Math.sin(A)];
+const deskBody=place(body(),A,tDesk), deskLeg=leg().map(o=>place(o,A,tDesk));
+const deskShadow=[[[-4,-4,0],[W+4,-4,0],[W+4,T+30,0],[-4,T+30,0]],[[W/2-8,T,0],[W/2+8,T,0],[W/2+8,T+90,0],[W/2-8,T+90,0]]];
+const wallBody=body();
+
+// ---- USB-C cable with a 90° plug in the right-edge port (local coords) ----
+const PLC='#1f1f1e';
+const box=(x0,x1,y0,y1,z0,z1,c)=>prism([[y0,z0],[y1,z0],[y1,z1],[y0,z1]],x0,x1,c);
+function plug(dir){            // dir: 'down' (wall) or 'back' (desk)
+  const a=box(W,W+10,usbZ-3.2,usbZ+3.2,usbY-6,usbY+6,PLC);
+  const b=dir==='down'?box(W+3,W+10,usbZ-3.2,usbZ+3.2,usbY-24,usbY-6,PLC):box(W+3,W+10,usbZ+3.2,usbZ+20,usbY-6,usbY+6,PLC);
+  return [a,b];
+}
+function bez(p0,p1,p2,p3,n=40){const o=[];for(let i=0;i<=n;i++){const t=i/n,u=1-t;o.push([0,1,2].map(k=>u*u*u*p0[k]+3*u*u*t*p1[k]+3*u*t*t*p2[k]+t*t*t*p3[k]));}return o;}
+const placeP=(v,a,t)=>add(rotX(v,a),t);
+// wall: plug points down, cable runs straight down the wall and off the picture
+const wallCable={pts:[[W+6.5,usbZ,usbY-24],[W+6.5,usbZ+1,-400]], shadow:[[W+9,T+0.3,usbY-26],[W+9,T+0.3,-400]]};
+// desk: plug points back, cable drops behind the body onto the desk and runs away
+const dStart=placeP([W+6.5,usbZ+20,usbY],A,tDesk);
+const deskCable={pts:bez(dStart,add(dStart,[2,40,0]),[W+18,150,1.8],[W+24,170,1.8]).concat([[W+40,420,1.8]]),
+                 shadow:bez(dStart,add(dStart,[2,40,0]),[W+18,150,1.8],[W+24,170,1.8]).filter(v=>v[2]<6).map(v=>[v[0]+0.6,v[1]+0.8,0.1]).concat([[W+40.6,420.8,0.1]])};
+
+const q=new URLSearchParams(location.search), view=q.get('view')||'hero', root=document.getElementById('root');
+const desk=(phi,th,K,m)=>scene([deskBody,...deskLeg],phi,th,K,{margin:m,shadows:deskShadow});
+const wall=(phi,th,K,m)=>scene([wallBody],phi,th,K,{margin:m,shadows:[[[6,T+0.3,H-10],[W+10,T+0.3,H-10],[W+10,T+0.3,-12],[6,T+0.3,-12]]]});
+const legAlone=(phi,th,K,m)=>scene(leg().map(o=>place(o,A,tDesk)),phi,th,K,{margin:m,shadows:[deskShadow[1]]});
+const deskPlug=plug('back').map(o=>place(o,A,tDesk));
+const V={
+  hero:()=>desk(24,13,4.4,60),
+  deskcable:()=>scene([deskBody,...deskLeg,...deskPlug],24,13,4.4,{margin:60,shadows:deskShadow,cables:[deskCable],extra:[[W+40,260,0]]}),
+  wallphoto:()=>scene([wallBody,...plug('down')],18,5,4.2,{margin:220,bg:'#e3dfd5',cables:[wallCable],extra:[[W+6.5,usbZ,-70]],
+     shadows:[[[6,T+0.3,H-10],[W+10,T+0.3,H-10],[W+10,T+0.3,-12],[6,T+0.3,-12]],[[W+2,T+0.3,usbY+8],[W+14,T+0.3,usbY+8],[W+14,T+0.3,usbY-28],[W+2,T+0.3,usbY-28]]]}),
+  body:()=>scene([wallBody],26,14,4.4,{margin:70,shadows:[[[-4,-6,-30],[W+4,-6,-30],[W+4,T+8,-30],[-4,T+8,-30]]],extra:[[0,0,-34],[W,T,-34]]}),
+  bodyback:()=>scene([wallBody],206,14,4.4,{margin:70,shadows:[[[-4,-6,-30],[W+4,-6,-30],[W+4,T+8,-30],[-4,T+8,-30]]],extra:[[0,0,-34],[W,T,-34]]}),
+  back:()=>desk(214,16,4.0,60),
+  side:()=>desk(90,0,4.0,60),
+  wall:()=>wall(22,6,4.0,70),
+  front:()=>scene([wallBody],0,0,4.0,{margin:40}),
+  ports:()=>scene([wallBody],62,4,4.6,{margin:50}),
+};
+if(V[view]) root.innerHTML=`<div style="padding:24px">${V[view]().html}</div>`;
+else {
+  const K=1.85, cell=(s,n,sub)=>`<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end">${s.html}<div class="lbl">${n}</div><div class="sublbl">${sub}</div></div>`;
+  root.innerHTML=`<div style="padding:56px 64px;width:1460px">
+    <div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b6a66">Tablo · T75</div>
+    <div style="font-size:36px;font-weight:600;letter-spacing:-1px;margin:6px 0 4px">Enclosure, as modelled</div>
+    <div style="font-size:15px;color:#4a4a46;margin-bottom:40px">185 × 146 × 15 mm printed body. Wall keyholes on the back; a clip-on rear leg holds it at 15° on a desk. USB-C and the power switch sit on the right edge.</div>
+    <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:40px 48px;align-items:end">
+      ${cell(desk(24,13,K,8),'On the desk','rear leg, invisible from the front')}
+      ${cell(desk(214,16,K,8),'Back','leg hooks into the wall keyholes')}
+      ${cell(desk(90,0,K*1.05,8),'Side','15° tilt, 15 mm body')}
+      ${cell(wall(22,6,K,20),'On the wall','leg removed')}
+      ${cell(scene([wallBody],62,4,K*1.1,{margin:8}),'Right edge','USB-C and power switch')}
+      ${cell(scene([wallBody],0,0,K*0.95,{margin:8}),'Front','face-on')}
+    </div>
+  </div>`;
+}
+</script>
+</body>
+</html>

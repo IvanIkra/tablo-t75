@@ -1,0 +1,25 @@
+[project]
+name = "tablo-service"
+version = "0.1.0"
+description = "Tablo T75 e-ink panel service: data, frame rendering, device protocol"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.10",
+    "pillow>=11",
+    "pyyaml>=6",
+    "segno>=1.6",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["tablo", "tablo.render"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-aiohttp>=1.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

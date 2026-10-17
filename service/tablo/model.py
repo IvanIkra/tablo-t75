@@ -1,0 +1,80 @@
+"""Screen model: plain data for one frame, no pixels (§6.2).
+
+Sources fill it, the renderer draws it. Weather icon keys: sun, moon, cloud,
+rain1, rain2, rain3, snow, storm, fog.
+"""
+
+import datetime as dt
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class WeatherNow:
+    temp: float
+    feels: float
+    icon: str
+
+
+@dataclass(frozen=True)
+class HourForecast:
+    hour: int
+    temp: float
+    icon: str
+
+
+@dataclass(frozen=True)
+class Deadline:
+    title: str
+    due: dt.date
+    category: str  # "study" | "personal"
+    source: str  # "hseapp" | "mail" | "tg" | "ical" | "ha"
+
+
+@dataclass(frozen=True)
+class Grade:
+    label: str
+    value: float
+    bonus: float | None = None
+
+
+@dataclass(frozen=True)
+class NewsItem:
+    text: str
+    source: str  # "tg" | "mail"
+
+
+@dataclass(frozen=True)
+class ClassItem:
+    start: dt.time
+    subject: str
+    room: str
+    mark: str | None = None  # "moved" | "cancelled"
+
+
+@dataclass(frozen=True)
+class Home:
+    temp: float | None
+    humidity: float | None
+    lights_on: int
+    lights_total: int
+    printer: str
+
+
+@dataclass(frozen=True)
+class Tile:
+    icon: str | None
+    on: bool
+
+
+@dataclass(frozen=True)
+class ScreenModel:
+    today: dt.date
+    weather: WeatherNow | None = None
+    forecast: tuple[HourForecast, ...] = ()
+    deadlines: tuple[Deadline, ...] = ()
+    grades: tuple[Grade, ...] = ()
+    news: tuple[NewsItem, ...] = ()
+    classes: tuple[ClassItem, ...] = ()
+    classes_label: str = ""
+    home: Home | None = None
+    tiles: tuple[Tile, ...] = field(default_factory=tuple)

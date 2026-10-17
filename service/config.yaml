@@ -1,0 +1,64 @@
+# Tablo service config for development (§6.5).
+# Later the Home Assistant integration sends the same structure to PUT /api/config.
+# Real tokens go in the environment (TABLO_DEVICE_TOKEN, TABLO_API_TOKEN), not here.
+
+server:
+  host: 0.0.0.0
+  port: 8765
+
+device:
+  token: dev-device-token
+api:
+  token: dev-api-token
+
+ha:
+  mode: fake   # in-memory Home Assistant until stage 6
+
+display:
+  tz: MSK-3
+  tz_name: Europe/Moscow
+  semester_start: 2026-09-01
+  long_press_ms: 600
+  full_refresh: {at: "04:00", max_partials: 200}
+  offline_after_s: 120
+  diag_ttl_s: 30
+  font_mode: aliased
+
+overlays:
+  qr_duration_s: 20
+  message_duration_s: 30
+
+wifi_networks:
+  - {ssid: Home, password: change-me, security: WPA}
+  - {ssid: VPN AP, password: change-me-too, security: WPA}
+
+buttons:
+  - id: 1
+    icon: mdi:power
+    tile: none
+    short: {action: script, entity: script.all_lights_off}
+    long: {action: script, entity: script.leaving_home}
+  - id: 2
+    icon: mdi:ceiling-light
+    short: {action: toggle, entity: light.ceiling_light}
+    long: {action: script, entity: script.solo_ceiling}
+  - id: 3
+    icon: mdi:lamp
+    short: {action: toggle, entity: light.desk_lamp}
+    long: {action: script, entity: script.lamp_brightness_cycle}
+  - id: 4
+    icon: mdi:desk
+    short: {action: toggle, entity: light.desk_light}
+    long: {action: script, entity: script.solo_desk}
+  - id: 5
+    icon: mdi:led-strip-variant
+    short: {action: toggle, entity: light.desk_backlight}
+    long: {action: script, entity: script.backlight_color_cycle}
+  - id: 6
+    icon: mdi:hanger
+    short: {action: toggle, entity: light.closet_light}
+    long: {action: script, entity: script.closet_5min}
+  - id: 7
+    icon: mdi:wifi
+    short: {action: toggle, entity: switch.vpn_ap}
+    long: {action: qr}
