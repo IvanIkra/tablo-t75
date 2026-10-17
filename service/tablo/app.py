@@ -23,7 +23,6 @@ FONTS_DIR = ROOT / "assets" / "fonts"
 MDI_DIR = ROOT / "assets" / "mdi"
 
 HUB = web.AppKey("hub", Hub)
-SAVED_CONFIG = web.AppKey("saved_config", Path)
 
 
 def _hub(request: web.Request) -> Hub:
@@ -99,14 +98,30 @@ async def put_config(request: web.Request) -> web.Response:
     # Secrets and the listening address are not set through the API.
     cfg.device_token, cfg.api_token = hub.cfg.device_token, hub.cfg.api_token
     cfg.host, cfg.port = hub.cfg.host, hub.cfg.port
+    cfg.demo = hub.cfg.demo  # demo switches are a runtime choice, not part of the pushed config
     hub.cfg = cfg
-    saved = request.app.get(SAVED_CONFIG)
-    if saved:
-        saved.parent.mkdir(parents=True, exist_ok=True)
-        saved.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    if hub.data_dir:
+        hub.data_dir.mkdir(parents=True, exist_ok=True)
+        (hub.data_dir / "config.yaml").write_text(
+            yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        )
     await hub.broadcast(hub.config_message())
     await hub.push_base()
     return web.json_response({"ok": True})
+
+
+async def get_demo(request: web.Request) -> web.Response:
+    return web.json_response(_hub(request).cfg.demo)
+
+
+async def put_demo(request: web.Request) -> web.Response:
+    _require_api_token(request)
+    data = await _json(request)
+    try:
+        demo = await _hub(request).set_demo(data)
+    except ConfigError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    return web.json_response(demo)
 
 
 async def emulator_index(request: web.Request) -> web.FileResponse:
@@ -117,12 +132,11 @@ async def root(request: web.Request) -> web.Response:
     raise web.HTTPFound("/emu")
 
 
-def create_app(cfg: Config, ha=None, saved_config: Path | None = None, periodic: bool = True) -> web.Application:
+def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: bool = True) -> web.Application:
+    """data_dir keeps the config last pushed by HA and the demo switches."""
     app = web.Application()
-    hub = Hub(cfg, ha or FakeHA())
+    hub = Hub(cfg, ha or FakeHA(), data_dir)
     app[HUB] = hub
-    if saved_config:
-        app[SAVED_CONFIG] = saved_config
 
     app.router.add_get("/ws", ws_handler)
     app.router.add_get("/api/status", status)
@@ -130,12 +144,21 @@ def create_app(cfg: Config, ha=None, saved_config: Path | None = None, periodic:
     app.router.add_post("/api/overlay/message", overlay_message)
     app.router.add_post("/api/refresh", refresh)
     app.router.add_put("/api/config", put_config)
+    app.router.add_get("/api/demo", get_demo)
+    app.router.add_put("/api/demo", put_demo)
     app.router.add_get("/frame.png", frame_png)
     app.router.add_get("/", root)
     app.router.add_get("/emu", emulator_index)
     app.router.add_static("/emu/static", EMULATOR_DIR)
     app.router.add_static("/fonts", FONTS_DIR)
     app.router.add_static("/mdi", MDI_DIR)
+
+    async def close_devices(app: web.Application) -> None:
+        # Otherwise shutdown waits for open device sockets to time out.
+        for dev in list(hub.devices.values()):
+            await dev.ws.close(code=1001, message=b"service shutting down")
+
+    app.on_shutdown.append(close_devices)
 
     if periodic:
         async def background(app: web.Application):

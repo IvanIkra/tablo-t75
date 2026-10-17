@@ -68,3 +68,12 @@ def test_wrap_marks_cut_text():
 def test_overlays_render():
     assert overlays.wifi_qr(CFG.wifi_networks).to_bw().size == (800, 480)
     assert overlays.message("Title", "Body\nsecond line", "mdi:bell").to_bw().size == (800, 480)
+
+
+def test_all_demo_off_renders_empty_blocks():
+    cfg = config.load(Path(__file__).resolve().parents[1] / "config.yaml")
+    cfg.demo = dict.fromkeys(cfg.demo, False)
+    model = builder.build(NOW, cfg, None)
+    assert model.weather is None and not model.news and model.home is None
+    assert not any(t.on for t in model.tiles) and model.tiles[1].icon == "mdi:ceiling-light"
+    assert screen.render(model).to_bw().size == (800, 480)

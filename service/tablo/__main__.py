@@ -21,7 +21,7 @@ def main() -> None:
     # The config last pushed by Home Assistant wins over the file (§6.5).
     saved = args.data / "config.yaml"
     cfg = config.load(saved if saved.exists() else args.config)
-    app = create_app(cfg, saved_config=saved)
+    app = create_app(cfg, data_dir=args.data)
     web.run_app(app, host=cfg.host, port=cfg.port, access_log=None)
 
 

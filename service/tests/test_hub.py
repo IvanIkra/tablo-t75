@@ -16,7 +16,7 @@ AUTH = {"Authorization": "Bearer dev-api-token"}
 @pytest.fixture
 async def client(aiohttp_client, tmp_path):
     cfg = config.load(CFG_PATH)
-    app = create_app(cfg, FakeHA(fast_delay=0, slow_delay=0), saved_config=tmp_path / "config.yaml", periodic=False)
+    app = create_app(cfg, FakeHA(fast_delay=0, slow_delay=0), data_dir=tmp_path, periodic=False)
     return await aiohttp_client(app)
 
 
@@ -111,3 +111,23 @@ async def test_put_config_applies_and_is_saved(client, tmp_path):
 async def test_frame_png(client):
     resp = await client.get("/frame.png")
     assert resp.status == 200 and resp.content_type == "image/png"
+
+
+async def test_demo_switches_turn_off_fake_ha_and_persist(client, tmp_path):
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    resp = await client.put("/api/demo", json={"ha": False, "news": False})
+    assert resp.status == 401
+    resp = await client.put("/api/demo", json={"ha": False, "news": False}, headers=AUTH)
+    assert resp.status == 200 and (await resp.json())["ha"] is False
+    msgs = [await _recv(ws) for _ in range(2)]
+    health = next(m for m in msgs if isinstance(m, dict))
+    assert health == {"type": "health", "ha": False, "synced_at": health["synced_at"]}
+    assert json.loads((tmp_path / "demo.json").read_text())["news"] is False
+
+    await ws.send_json({"type": "button", "id": 4, "press": "short", "seq": 2})
+    result = await _recv(ws)
+    assert result["ok"] is False and "not connected" in result["error"]
+
+    resp = await client.put("/api/demo", json={"bogus": True}, headers=AUTH)
+    assert resp.status == 400

@@ -1,4 +1,8 @@
-"""Assembles the screen model from sources, HA state and config."""
+"""Assembles the screen model from sources, HA state and config.
+
+Blocks whose demo switch is off stay empty until their real source exists,
+so the screen shows only what is real (§15).
+"""
 
 import datetime as dt
 
@@ -11,6 +15,7 @@ REFRESH_TILE = Tile(icon="mdi:refresh", on=False)
 
 
 def tiles(cfg: Config, ha) -> tuple[Tile, ...]:
+    """ha is None when no Home Assistant is available: icons stay, nothing is filled."""
     result = []
     for button_id in range(1, 8):
         button = cfg.button(button_id)
@@ -18,7 +23,8 @@ def tiles(cfg: Config, ha) -> tuple[Tile, ...]:
             result.append(Tile(icon=None, on=False))
             continue
         entity = button.tile_entity
-        result.append(Tile(icon=button.icon, on=bool(entity) and ha.state(entity) == "on"))
+        on = ha is not None and bool(entity) and ha.state(entity) == "on"
+        result.append(Tile(icon=button.icon, on=on))
     result.append(REFRESH_TILE)
     return tuple(result)
 
@@ -40,17 +46,18 @@ def home(ha) -> Home:
 
 
 def build(now: dt.datetime, cfg: Config, ha) -> ScreenModel:
-    weather, forecast = stub.weather(now)
-    classes, classes_label = stub.classes(now)
+    demo = cfg.demo
+    weather, forecast = stub.weather(now) if demo["weather"] else (None, ())
+    classes, classes_label = stub.classes(now) if demo["classes"] else ((), "")
     return ScreenModel(
         today=now.date(),
         weather=weather,
         forecast=forecast,
-        deadlines=stub.deadlines(now),
-        grades=stub.grades(),
-        news=stub.news(),
+        deadlines=stub.deadlines(now) if demo["deadlines"] else (),
+        grades=stub.grades() if demo["grades"] else (),
+        news=stub.news() if demo["news"] else (),
         classes=classes,
         classes_label=classes_label,
-        home=home(ha),
+        home=home(ha) if ha is not None else None,
         tiles=tiles(cfg, ha),
     )

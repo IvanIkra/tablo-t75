@@ -22,8 +22,11 @@
       <label><input type="checkbox" id="opt-offline"> service unreachable</label>
       <label><input type="checkbox" id="opt-rects" checked> show partial refresh areas</label>
       <label><input type="checkbox" id="opt-paper" checked> paper colors</label>
-      <label>scale <select id="opt-scale"><option value="fit" selected>fit</option><option>1</option><option>1.5</option><option>2</option></select></label>
+      <label>scale <select id="opt-scale"><option value="fit" selected>fit</option><option>1</option><option>2</option></select></label>
     </div>
+    <div class="row hint" id="scale-hint" hidden>The window is narrower than the 800 px screen, so the picture is shrunk and smoothed. Widen the window for exact 1:1 pixels.</div>
+    <div class="row" id="demo-row"><strong>Demo data</strong><span class="muted">loading…</span></div>
+    <div class="row muted">Untick a block to see only real data there. “fake HA” is the in-memory Home Assistant.</div>
     <div class="row muted">Keys 1–8 press the buttons; hold ≥ long-press time for a long press.</div>
     <details>
       <summary>Protocol log</summary>

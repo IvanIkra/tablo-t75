@@ -80,6 +80,9 @@ class Display:
     font_mode: str = "aliased"  # "aliased" (FreeType mono) or "threshold" (grey + cut)
 
 
+DEMO_KEYS = ("weather", "deadlines", "grades", "news", "classes", "ha")
+
+
 @dataclass
 class Config:
     host: str = "0.0.0.0"
@@ -92,6 +95,8 @@ class Config:
     wifi_networks: list[WifiNetwork] = field(default_factory=list)
     qr_duration_s: int = 20
     message_duration_s: int = 30
+    # Which blocks show demo data until their real source exists; "ha" is the in-memory fake HA.
+    demo: dict[str, bool] = field(default_factory=lambda: dict.fromkeys(DEMO_KEYS, True))
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -132,6 +137,8 @@ def from_dict(data: dict) -> Config:
     cfg.qr_duration_s = int(overlays.get("qr_duration_s", cfg.qr_duration_s))
     cfg.message_duration_s = int(overlays.get("message_duration_s", cfg.message_duration_s))
 
+    cfg.demo.update(parse_demo(data.pop("demo", {}) or {}))
+
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []
     ]
@@ -154,6 +161,15 @@ def from_dict(data: dict) -> Config:
         raise ConfigError(f"unknown top-level keys {sorted(data)}")
     _apply_env(cfg)
     return cfg
+
+
+def parse_demo(data: dict) -> dict[str, bool]:
+    unknown = set(data) - set(DEMO_KEYS)
+    if unknown:
+        raise ConfigError(f"demo: unknown keys {sorted(unknown)}")
+    if not all(isinstance(v, bool) for v in data.values()):
+        raise ConfigError("demo: values must be true or false")
+    return dict(data)
 
 
 def _apply_env(cfg: Config) -> None:

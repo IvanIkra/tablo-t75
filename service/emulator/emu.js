@@ -58,8 +58,14 @@ const $ = (id) => document.getElementById(id);
 const opt = { offline: $("opt-offline"), rects: $("opt-rects"), paper: $("opt-paper"), scale: $("opt-scale") };
 
 function applyScale() {
-  const fit = Math.min(2, (document.documentElement.clientWidth - 32) / (W + 36));
+  // Upscale only by whole numbers so every screen pixel stays a crisp square; a 1-bit image shrunk
+  // pixel by pixel loses one-pixel strokes, so below 1:1 the browser smooths it instead.
+  const avail = (document.documentElement.clientWidth - 32) / (W + 36);
+  const fit = avail >= 1 ? Math.min(2, Math.floor(avail)) : avail;
   const s = opt.scale.value === "fit" ? fit : parseFloat(opt.scale.value);
+  const exact = s >= 1 && Number.isInteger(s);
+  screen.style.imageRendering = exact ? "pixelated" : "auto";
+  $("scale-hint").hidden = s >= 1;
   screen.style.width = `${W * s}px`;
   $("keys").style.width = `${W * s}px`;
   $("device").style.setProperty("--pad", `${Math.round(18 * s)}px`);
@@ -169,7 +175,7 @@ function drawFirmwareZones(buf) {
   drawZone(buf, st.cfg.zones.clock, (c) => {
     c.font = "700 64px InterEmu";
     c.fillText(p.hhmm, cx + 6, cy + 66);
-    c.font = "400 16px InterEmu";
+    c.font = "500 16px InterEmu";
     c.fillText(`${p.weekday}, ${p.month} ${p.day} · wk ${semesterWeek(p)}`, cx + 8, cy + 90);
   });
 
@@ -188,7 +194,7 @@ function drawFirmwareZones(buf) {
     c.textAlign = "right";
     let x = sx + sw - 4;
     if (st.health.synced_at) {
-      c.font = "400 15px InterEmu";
+      c.font = "500 15px InterEmu";
       const t = `synced ${st.health.synced_at}`;
       c.fillText(t, x, sy + 17);
       x -= c.measureText(t).width + 8;
@@ -489,6 +495,41 @@ function setupKeys() {
   });
 }
 
+// ---------- demo data switches (service side, §15) ----------
+const API_TOKEN = params.get("api_token") || "dev-api-token";
+const DEMO_LABELS = { weather: "weather", deadlines: "deadlines", grades: "grades", news: "news", classes: "classes", ha: "fake HA" };
+
+async function setupDemo() {
+  const row = $("demo-row");
+  let demo;
+  try {
+    demo = await (await fetch("/api/demo")).json();
+  } catch (err) {
+    row.lastChild.textContent = `unavailable: ${err}`;
+    return;
+  }
+  row.lastChild.remove();
+  for (const [key, label] of Object.entries(DEMO_LABELS)) {
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = !!demo[key];
+    box.addEventListener("change", async () => {
+      const resp = await fetch("/api/demo", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${API_TOKEN}` },
+        body: JSON.stringify({ [key]: box.checked }),
+      }).catch((err) => ({ ok: false, statusText: String(err) }));
+      if (!resp.ok) {
+        box.checked = !box.checked;
+        log("!", `demo switch failed: ${resp.status ?? ""} ${resp.statusText} (pass ?api_token=… in the address)`);
+      }
+    });
+    const l = document.createElement("label");
+    l.append(box, ` ${label}`);
+    row.append(l);
+  }
+}
+
 // ---------- clock, status, scheduled full refresh ----------
 let lastMinute = null;
 function tick() {
@@ -510,6 +551,7 @@ async function start() {
   setupKeys();
   const faces = [
     new FontFace("InterEmu", "url(/fonts/Inter-Regular.ttf)", { weight: "400" }),
+    new FontFace("InterEmu", "url(/fonts/Inter-Medium.ttf)", { weight: "500" }),
     new FontFace("InterEmu", "url(/fonts/Inter-SemiBold.ttf)", { weight: "600" }),
     new FontFace("InterEmu", "url(/fonts/Inter-Bold.ttf)", { weight: "700" }),
     new FontFace("MDIEmu", "url(/mdi/materialdesignicons-webfont.ttf)"),
@@ -517,6 +559,7 @@ async function start() {
   await Promise.all(faces.map((f) => f.load().then(() => document.fonts.add(f))));
   present(true);
   connect();
+  setupDemo();
   setInterval(tick, 1000);
   setInterval(() => send({
     type: "status", rssi: -55, uptime_s: Math.floor((Date.now() - st.startedAt) / 1000),

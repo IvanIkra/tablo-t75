@@ -15,7 +15,7 @@
 body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; }
 main { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px 16px; }
 .device { background: var(--case); padding: var(--pad, 24px); border-radius: 10px; }
-#screen { display: block; image-rendering: pixelated; }
+#screen { display: block; }
 .keys { display: grid; grid-template-columns: repeat(8, 1fr); margin-top: 18px; }
 .keys button {
   justify-self: center; width: 70%; aspect-ratio: 16.4 / 12; border-radius: 999px; border: 0;
@@ -29,3 +29,5 @@ main { display: flex; flex-direction: column; align-items: center; gap: 16px; pa
 .badge.bad { background: var(--bad); }
 .muted { color: var(--muted); }
 #log { font: 12px/1.4 ui-monospace, monospace; max-height: 260px; overflow: auto; margin: 8px 0 0; }
+.hint { color: var(--bad); }
+[hidden] { display: none !important; }

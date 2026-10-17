@@ -20,6 +20,8 @@ PAD = 16
 HEADER_H = 36  # block title + underline
 ROW_H = 24
 ROWS = 3
+# Medium rather than Regular: one-pixel Regular stems look broken on a 1-bit screen.
+BODY = "medium"
 
 CATEGORY_ICONS = {"study": "mdi:book-open-variant", "personal": "mdi:account"}
 SOURCE_ICONS = {
@@ -62,7 +64,7 @@ def _block_header(c: Canvas, block, title: str, right: str = "") -> None:
     f = fonts.inter(16, "semibold")
     c.text((x + PAD, y + 10), title, f)
     if right:
-        c.text((x + w - PAD, y + 10), right, fonts.inter(16), anchor="ra")
+        c.text((x + w - PAD, y + 10), right, fonts.inter(16, BODY), anchor="ra")
     c.hline(x + PAD, x + w - PAD, y + 32)
 
 
@@ -74,7 +76,7 @@ def _row(c: Canvas, block, i: int, left: str, right: str = "", left_x: int | Non
          inverted: bool = False, right_font=None) -> None:
     x, _, w, _ = block
     y = _row_y(block, i)
-    f = fonts.inter(16)
+    f = fonts.inter(16, BODY)
     rf = right_font or f
     fg = WHITE if inverted else BLACK
     if inverted:
@@ -95,19 +97,23 @@ def _weather(c: Canvas, m: ScreenModel) -> None:
     x, y, w, h = WEATHER_BOX
     c.rect(x, y, w, h, outline=BLACK, width=2)
     if not m.weather:
+        c.text((x + w / 2, y + h / 2), "no weather", fonts.inter(15, BODY), anchor="mm")
         return
     weather_icons.draw(c.draw, m.weather.icon, x + 30, y + h / 2, 44)
     c.text((x + 58, y + 8), _fmt_temp(m.weather.temp), fonts.inter(30, "semibold"))
-    c.text((x + 60, y + 44), f"feels {_fmt_temp(m.weather.feels)}", fonts.inter(15))
+    c.text((x + 60, y + 44), f"feels {_fmt_temp(m.weather.feels)}", fonts.inter(15, BODY))
 
 
 def _forecast(c: Canvas, m: ScreenModel) -> None:
     x, y, w, h = FORECAST_BOX
     c.rect(x, y, w, h, outline=BLACK, width=2)
+    if not m.forecast:
+        c.text((x + w / 2, y + h / 2), "no forecast", fonts.inter(15, BODY), anchor="mm")
+        return
     col = w / 8
     for i, hour in enumerate(m.forecast[:8]):
         cx = x + col * i + col / 2
-        c.text((cx, y + 4), f"{hour.hour:02d}", fonts.inter(15), anchor="ma")
+        c.text((cx, y + 4), f"{hour.hour:02d}", fonts.inter(15, BODY), anchor="ma")
         weather_icons.draw(c.draw, hour.icon, cx, y + 34, 22)
         c.text((cx, y + h - 6), _fmt_temp(hour.temp), fonts.inter(16, "semibold"), anchor="md")
 
@@ -133,6 +139,8 @@ def _deadlines(c: Canvas, m: ScreenModel) -> None:
     more = len(items) - ROWS
     _block_header(c, DEADLINES, "Deadlines", f"+{more}" if more > 0 else "")
     x = DEADLINES[0]
+    if not items:
+        _row(c, DEADLINES, 0, "no deadlines")
     for i, d in enumerate(items[:ROWS]):
         urgent = 0 <= (d.due - today).days <= 1
         fg = WHITE if urgent else BLACK
@@ -160,12 +168,14 @@ def _grades(c: Canvas, m: ScreenModel) -> None:
 def _news(c: Canvas, m: ScreenModel) -> None:
     x, y, w, h = NEWS
     _block_header(c, NEWS, "News")
-    f = fonts.inter(16)
+    f = fonts.inter(16, BODY)
     line_h = 20
     text_x = x + PAD + 22
     max_w = x + w - PAD - text_x
     cy = y + HEADER_H + 8
     bottom = y + h - 8
+    if not m.news:
+        c.text((x + PAD, cy), "no news", f)
     for item in m.news:
         lines = c.wrap(item.text, f, max_w, 2)
         if cy + len(lines) * line_h > bottom:
@@ -179,6 +189,8 @@ def _news(c: Canvas, m: ScreenModel) -> None:
 def _classes(c: Canvas, m: ScreenModel) -> None:
     _block_header(c, CLASSES, "Classes", m.classes_label)
     x = CLASSES[0]
+    if not m.classes:
+        _row(c, CLASSES, 0, "no classes")
     for i, cl in enumerate(m.classes[:ROWS]):
         room = cl.mark if cl.mark else cl.room
         _row(c, CLASSES, i, cl.subject, room, left_x=x + PAD + 52)
@@ -189,6 +201,7 @@ def _home(c: Canvas, m: ScreenModel) -> None:
     _block_header(c, HOME, "Home")
     h = m.home
     if not h:
+        _row(c, HOME, 0, "no Home Assistant")
         return
     climate = []
     if h.temp is not None:

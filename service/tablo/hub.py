@@ -6,12 +6,13 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from aiohttp import WSMsgType, web
 
 from . import builder, protocol
-from .config import Config
+from .config import Config, parse_demo
 from .render import overlays, screen
 from .render.canvas import Canvas, pack
 
@@ -32,9 +33,10 @@ class Device:
 
 
 class Hub:
-    def __init__(self, cfg: Config, ha):
+    def __init__(self, cfg: Config, ha, data_dir: Path | None = None):
         self.cfg = cfg
         self.ha = ha
+        self.data_dir = data_dir
         self.devices: dict[str, Device] = {}
         self.base: protocol.Frame | None = None
         self.synced_at: dt.datetime | None = None
@@ -43,6 +45,35 @@ class Hub:
         self._render_task: asyncio.Task | None = None
         self._tasks: set[asyncio.Task] = set()
         ha.add_listener(lambda entity, old, new: self.schedule_render())
+        self._load_demo()
+
+    # --- demo data switches ---------------------------------------------------
+
+    @property
+    def active_ha(self):
+        """The HA to use, or None: the fake HA can be switched off to see the real state."""
+        return self.ha if self.cfg.demo["ha"] else None
+
+    def _demo_path(self) -> Path | None:
+        return self.data_dir / "demo.json" if self.data_dir else None
+
+    def _load_demo(self) -> None:
+        path = self._demo_path()
+        if path and path.exists():
+            try:
+                self.cfg.demo.update(parse_demo(json.loads(path.read_text())))
+            except ValueError as e:
+                log.warning("ignoring %s: %s", path, e)
+
+    async def set_demo(self, changes: dict[str, bool]) -> dict[str, bool]:
+        self.cfg.demo.update(parse_demo(changes))
+        path = self._demo_path()
+        if path:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(self.cfg.demo, indent=2))
+        await self.broadcast(self.health_message())
+        await self.push_base()
+        return dict(self.cfg.demo)
 
     # --- time -----------------------------------------------------------------
 
@@ -58,7 +89,7 @@ class Hub:
     async def render_base(self) -> protocol.Frame:
         """Render the main screen; returns the current base frame (new or unchanged)."""
         async with self._render_lock:
-            model = builder.build(self.now(), self.cfg, self.ha)
+            model = builder.build(self.now(), self.cfg, self.active_ha)
             canvas = await asyncio.to_thread(screen.render, model, self.cfg.display.font_mode)
             payload = await asyncio.to_thread(_payload, canvas)
             self.synced_at = self.now()
@@ -126,7 +157,8 @@ class Hub:
 
     def health_message(self) -> dict:
         synced = self.synced_at.strftime("%H:%M") if self.synced_at else None
-        return {"type": "health", "ha": bool(self.ha.connected), "synced_at": synced}
+        ha = self.active_ha
+        return {"type": "health", "ha": bool(ha and ha.connected), "synced_at": synced}
 
     async def broadcast(self, message: dict) -> None:
         for dev in list(self.devices.values()):
@@ -196,7 +228,8 @@ class Hub:
         button_id, press, seq = msg.get("id"), msg.get("press"), msg.get("seq")
         if press not in ("short", "long") or not isinstance(button_id, int):
             return
-        await self.ha.fire_event("tablo_button", {"button": button_id, "press": press})
+        if self.active_ha:
+            await self.active_ha.fire_event("tablo_button", {"button": button_id, "press": press})
         ok, error = True, None
         try:
             if button_id == 8:
@@ -219,11 +252,14 @@ class Hub:
         if not button:
             return
         action = button.short if press == "short" else button.long
+        ha = self.active_ha
+        if action.action in ("toggle", "script") and ha is None:
+            raise RuntimeError("Home Assistant is not connected")
         match action.action:
             case "toggle":
-                await asyncio.wait_for(self.ha.toggle(action.entity), ACTION_TIMEOUT_S)
+                await asyncio.wait_for(ha.toggle(action.entity), ACTION_TIMEOUT_S)
             case "script":
-                await asyncio.wait_for(self.ha.run_script(action.entity), ACTION_TIMEOUT_S)
+                await asyncio.wait_for(ha.run_script(action.entity), ACTION_TIMEOUT_S)
             case "qr":
                 await self.show_qr(action.networks, action.duration_s)
             case "message":
@@ -258,7 +294,8 @@ class Hub:
                 d.id: {"connected_at": d.connected_at, "fw": d.fw, **d.status} for d in self.devices.values()
             },
             "frame": {"id": self.base.frame_id, "crc": self.base.crc} if self.base else None,
-            "ha": {"mode": self.cfg.ha_mode, "connected": bool(self.ha.connected)},
+            "ha": {"mode": self.cfg.ha_mode, "connected": bool(self.active_ha and self.active_ha.connected)},
+            "demo": dict(self.cfg.demo),
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
         }
 
