@@ -18,8 +18,7 @@ HOME = (560, 264, 240, 164)
 
 PAD = 16
 HEADER_H = 36  # block title + underline
-ROW_H = 24
-ROWS = 3
+ROW_H = 22
 # Medium rather than Regular: one-pixel Regular stems look broken on a 1-bit screen.
 BODY = "medium"
 
@@ -66,6 +65,11 @@ def _block_header(c: Canvas, block, title: str, right: str = "") -> None:
     if right:
         c.text((x + w - PAD, y + 10), right, fonts.inter(16, BODY), anchor="ra")
     c.hline(x + PAD, x + w - PAD, y + 32)
+
+
+def _rows(block) -> int:
+    """How many text rows fit under the block header."""
+    return (block[3] - HEADER_H - 12) // ROW_H
 
 
 def _row_y(block, i: int) -> int:
@@ -136,16 +140,16 @@ def _deadlines(c: Canvas, m: ScreenModel) -> None:
     overdue = sorted((d for d in m.deadlines if today - dt.timedelta(days=3) <= d.due < today),
                      key=lambda d: d.due, reverse=True)
     items = upcoming + overdue
-    more = len(items) - ROWS
+    more = len(items) - _rows(DEADLINES)
     _block_header(c, DEADLINES, "Deadlines", f"+{more}" if more > 0 else "")
     x = DEADLINES[0]
     if not items:
         _row(c, DEADLINES, 0, "no deadlines")
-    for i, d in enumerate(items[:ROWS]):
+    for i, d in enumerate(items[: _rows(DEADLINES)]):
         urgent = 0 <= (d.due - today).days <= 1
         fg = WHITE if urgent else BLACK
         _row(c, DEADLINES, i, d.title, _due_label(d.due, today), left_x=x + PAD + 40, inverted=urgent)
-        cy = _row_y(DEADLINES, i) + 9
+        cy = _row_y(DEADLINES, i) + 8
         c.icon(CATEGORY_ICONS.get(d.category), x + PAD + 7, cy, 15, fill=fg)
         c.icon(SOURCE_ICONS.get(d.source), x + PAD + 26, cy, 15, fill=fg)
 
@@ -155,12 +159,12 @@ def _fmt_grade(value: float) -> str:
 
 
 def _grades(c: Canvas, m: ScreenModel) -> None:
-    more = len(m.grades) - ROWS
+    more = len(m.grades) - _rows(GRADES)
     _block_header(c, GRADES, "Grades", f"+{more}" if more > 0 else "")
     if not m.grades:
         _row(c, GRADES, 0, "no new grades")
         return
-    for i, g in enumerate(m.grades[:ROWS]):
+    for i, g in enumerate(m.grades[: _rows(GRADES)]):
         value = _fmt_grade(g.value) + (f" +{_fmt_grade(g.bonus)}" if g.bonus else "")
         _row(c, GRADES, i, g.label, value, right_font=fonts.inter(16, "semibold"))
 
@@ -191,7 +195,7 @@ def _classes(c: Canvas, m: ScreenModel) -> None:
     x = CLASSES[0]
     if not m.classes:
         _row(c, CLASSES, 0, "no classes")
-    for i, cl in enumerate(m.classes[:ROWS]):
+    for i, cl in enumerate(m.classes[: _rows(CLASSES)]):
         room = cl.mark if cl.mark else cl.room
         _row(c, CLASSES, i, cl.subject, room, left_x=x + PAD + 52)
         c.text((x + PAD, _row_y(CLASSES, i)), cl.start.strftime("%H:%M"), fonts.inter(16, "semibold"))

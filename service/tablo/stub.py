@@ -26,6 +26,8 @@ def deadlines(now: dt.datetime) -> tuple[Deadline, ...]:
         Deadline("Physics lab report", d + dt.timedelta(days=3), "study", "mail"),
         Deadline("Renew passport photo", d + dt.timedelta(days=5), "personal", "ha"),
         Deadline("English essay", d + dt.timedelta(days=6), "study", "tg"),
+        Deadline("DM HW 4", d + dt.timedelta(days=8), "study", "hseapp"),
+        Deadline("Midterm: Calculus", d + dt.timedelta(days=12), "study", "ical"),
         Deadline("Algebra HW 6", d - dt.timedelta(days=1), "study", "hseapp"),
     )
 
@@ -36,6 +38,8 @@ def grades() -> tuple[Grade, ...]:
         Grade("DM HW 1B", 9.5, bonus=1),
         Grade("Calc Quiz 2", 6),
         Grade("Algebra Sem 4", 6),
+        Grade("Calc HW Oct 8", 10),
+        Grade("DM Test 1", 7.5),
     )
 
 
