@@ -9,7 +9,7 @@ CONFIG_YAML = Path(__file__).resolve().parents[1] / "config.yaml"
 
 
 def test_dev_config_loads():
-    cfg = config.load(CONFIG_YAML)
+    cfg = config.load(CONFIG_YAML, local=False)
     assert [b.id for b in cfg.buttons] == list(range(1, 8))
     assert cfg.button(3).tile_entity == "light.desk_lamp"
     assert cfg.button(1).tile_entity is None  # "all off" never fills its tile

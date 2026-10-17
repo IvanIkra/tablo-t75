@@ -80,6 +80,24 @@ class Display:
     font_mode: str = "aliased"  # "aliased" (FreeType mono) or "threshold" (grey + cut)
 
 
+@dataclass
+class Sheet:
+    url: str
+    label: str | None = None  # short course name on screen; None = derived from the sheet title
+
+
+@dataclass
+class Grades:
+    """§7.1: grade sheets kept by teachers, shared by link."""
+
+    student: str = ""  # surname and first name as written in the sheets
+    sheets: list[Sheet] = field(default_factory=list)
+    window_days: int = 7
+    poll_minutes: int = 30
+    # Development aid: also show grades that were already there on the first fetch.
+    include_baseline: bool = False
+
+
 DEMO_KEYS = ("weather", "deadlines", "grades", "news", "classes", "ha")
 
 
@@ -97,6 +115,7 @@ class Config:
     message_duration_s: int = 30
     # Which blocks show demo data until their real source exists; "ha" is the in-memory fake HA.
     demo: dict[str, bool] = field(default_factory=lambda: dict.fromkeys(DEMO_KEYS, True))
+    grades: Grades = field(default_factory=Grades)
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -139,6 +158,12 @@ def from_dict(data: dict) -> Config:
 
     cfg.demo.update(parse_demo(data.pop("demo", {}) or {}))
 
+    grades = dict(data.pop("grades", {}) or {})
+    sheets = [Sheet(**_known(Sheet, s, "grades.sheets")) for s in grades.pop("sheets", []) or []]
+    cfg.grades = Grades(sheets=sheets, **_known(Grades, grades, "grades"))
+    if sheets and not cfg.grades.student.strip():
+        raise ConfigError("grades.student is required to find your row in the sheets")
+
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []
     ]
@@ -179,6 +204,23 @@ def _apply_env(cfg: Config) -> None:
         cfg.port = int(os.environ["TABLO_PORT"])
 
 
-def load(path: Path) -> Config:
+def _merge(base: dict, override: dict) -> dict:
+    out = dict(base)
+    for key, value in override.items():
+        out[key] = _merge(out[key], value) if isinstance(value, dict) and isinstance(out.get(key), dict) else value
+    return out
+
+
+def load(path: Path, local: bool = True) -> Config:
+    """Load a config file, then `<name>.local.yaml` next to it if present.
+
+    The local file is for personal settings that stay out of git: sheet links,
+    calendar links, the student name.
+    """
     with open(path, encoding="utf-8") as f:
-        return from_dict(yaml.safe_load(f) or {})
+        data = yaml.safe_load(f) or {}
+    local_path = path.with_name(f"{path.stem}.local{path.suffix}")
+    if local and local_path.exists():
+        with open(local_path, encoding="utf-8") as f:
+            data = _merge(data, yaml.safe_load(f) or {})
+    return from_dict(data)

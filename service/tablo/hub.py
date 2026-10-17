@@ -13,6 +13,9 @@ from aiohttp import WSMsgType, web
 
 from . import builder, protocol
 from .config import Config, parse_demo
+from .llm import Haiku
+from .sources.grades import GradesSource, LayoutProvider
+from .store import Store
 from .render import overlays, screen
 from .render.canvas import Canvas, pack
 
@@ -33,10 +36,19 @@ class Device:
 
 
 class Hub:
-    def __init__(self, cfg: Config, ha, data_dir: Path | None = None):
+    def __init__(self, cfg: Config, ha, data_dir: Path | None = None, llm=None):
         self.cfg = cfg
         self.ha = ha
         self.data_dir = data_dir
+        self.store = Store(data_dir / "tablo.db" if data_dir else ":memory:")
+        self.llm = llm or Haiku()
+        self.grades = GradesSource(
+            get_cfg=lambda: self.cfg,
+            store=self.store,
+            layouts=LayoutProvider(self.llm, self.store),
+            on_change=lambda: self.schedule_render(0.5),
+            now=self.now,
+        )
         self.devices: dict[str, Device] = {}
         self.base: protocol.Frame | None = None
         self.synced_at: dt.datetime | None = None
@@ -89,7 +101,8 @@ class Hub:
     async def render_base(self) -> protocol.Frame:
         """Render the main screen; returns the current base frame (new or unchanged)."""
         async with self._render_lock:
-            model = builder.build(self.now(), self.cfg, self.active_ha)
+            model = builder.build(self.now(), self.cfg, self.active_ha, grades=self.grades.current(),
+                                  grades_problem=self.grades.problem())
             canvas = await asyncio.to_thread(screen.render, model, self.cfg.display.font_mode)
             payload = await asyncio.to_thread(_payload, canvas)
             self.synced_at = self.now()
@@ -296,6 +309,10 @@ class Hub:
             "frame": {"id": self.base.frame_id, "crc": self.base.crc} if self.base else None,
             "ha": {"mode": self.cfg.ha_mode, "connected": bool(self.active_ha and self.active_ha.connected)},
             "demo": dict(self.cfg.demo),
+            "grades": {
+                "llm": self.llm.available,
+                "sheets": {sid: vars(s) for sid, s in self.grades.status.items()},
+            },
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
         }
 

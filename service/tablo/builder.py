@@ -45,7 +45,8 @@ def home(ha) -> Home:
     )
 
 
-def build(now: dt.datetime, cfg: Config, ha) -> ScreenModel:
+def build(now: dt.datetime, cfg: Config, ha, grades: tuple = (), grades_problem: str | None = None) -> ScreenModel:
+    """grades: real grades from the sheets source, used when demo grades are off."""
     demo = cfg.demo
     weather, forecast = stub.weather(now) if demo["weather"] else (None, ())
     classes, classes_label = stub.classes(now) if demo["classes"] else ((), "")
@@ -54,7 +55,8 @@ def build(now: dt.datetime, cfg: Config, ha) -> ScreenModel:
         weather=weather,
         forecast=forecast,
         deadlines=stub.deadlines(now) if demo["deadlines"] else (),
-        grades=stub.grades() if demo["grades"] else (),
+        grades=stub.grades() if demo["grades"] else grades,
+        grades_problem=None if demo["grades"] else grades_problem,
         news=stub.news() if demo["news"] else (),
         classes=classes,
         classes_label=classes_label,

@@ -162,7 +162,7 @@ def _grades(c: Canvas, m: ScreenModel) -> None:
     more = len(m.grades) - _rows(GRADES)
     _block_header(c, GRADES, "Grades", f"+{more}" if more > 0 else "")
     if not m.grades:
-        _row(c, GRADES, 0, "no new grades")
+        _row(c, GRADES, 0, m.grades_problem or "no new grades")
         return
     for i, g in enumerate(m.grades[: _rows(GRADES)]):
         value = _fmt_grade(g.value) + (f" +{_fmt_grade(g.bonus)}" if g.bonus else "")

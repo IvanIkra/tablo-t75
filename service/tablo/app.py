@@ -162,11 +162,13 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
 
     if periodic:
         async def background(app: web.Application):
-            task = asyncio.create_task(hub.run_periodic())
+            tasks = [asyncio.create_task(hub.run_periodic()), asyncio.create_task(hub.grades.run())]
             yield
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+            for task in tasks:
+                task.cancel()
+            for task in tasks:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
         app.cleanup_ctx.append(background)
     return app

@@ -15,7 +15,7 @@ AUTH = {"Authorization": "Bearer dev-api-token"}
 
 @pytest.fixture
 async def client(aiohttp_client, tmp_path):
-    cfg = config.load(CFG_PATH)
+    cfg = config.load(CFG_PATH, local=False)
     app = create_app(cfg, FakeHA(fast_delay=0, slow_delay=0), data_dir=tmp_path, periodic=False)
     return await aiohttp_client(app)
 

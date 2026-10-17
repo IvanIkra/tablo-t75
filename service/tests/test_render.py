@@ -10,7 +10,7 @@ from tablo.render import overlays, screen
 from tablo.render.canvas import Canvas
 from tablo.render.screen import _due_label
 
-CFG = config.load(Path(__file__).resolve().parents[1] / "config.yaml")
+CFG = config.load(Path(__file__).resolve().parents[1] / "config.yaml", local=False)
 NOW = dt.datetime(2026, 10, 18, 18, 42)
 
 
@@ -71,7 +71,7 @@ def test_overlays_render():
 
 
 def test_all_demo_off_renders_empty_blocks():
-    cfg = config.load(Path(__file__).resolve().parents[1] / "config.yaml")
+    cfg = config.load(Path(__file__).resolve().parents[1] / "config.yaml", local=False)
     cfg.demo = dict.fromkeys(cfg.demo, False)
     model = builder.build(NOW, cfg, None)
     assert model.weather is None and not model.news and model.home is None

@@ -73,6 +73,7 @@ class ScreenModel:
     forecast: tuple[HourForecast, ...] = ()
     deadlines: tuple[Deadline, ...] = ()
     grades: tuple[Grade, ...] = ()
+    grades_problem: str | None = None  # shown instead of "no new grades" when the source is failing
     news: tuple[NewsItem, ...] = ()
     classes: tuple[ClassItem, ...] = ()
     classes_label: str = ""
