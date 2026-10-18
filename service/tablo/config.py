@@ -98,6 +98,14 @@ class Grades:
     include_baseline: bool = False
 
 
+@dataclass
+class HseApp:
+    """§7.2: personal deadlines from the university app. The login itself lives in the store, not here."""
+
+    enabled: bool = True
+    poll_minutes: int = 15
+
+
 DEMO_KEYS = ("weather", "deadlines", "grades", "news", "classes", "ha")
 
 
@@ -116,6 +124,7 @@ class Config:
     # Which blocks show demo data until their real source exists; "ha" is the in-memory fake HA.
     demo: dict[str, bool] = field(default_factory=lambda: dict.fromkeys(DEMO_KEYS, True))
     grades: Grades = field(default_factory=Grades)
+    hseapp: HseApp = field(default_factory=HseApp)
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -163,6 +172,8 @@ def from_dict(data: dict) -> Config:
     cfg.grades = Grades(sheets=sheets, **_known(Grades, grades, "grades"))
     if sheets and not cfg.grades.student.strip():
         raise ConfigError("grades.student is required to find your row in the sheets")
+
+    cfg.hseapp = HseApp(**_known(HseApp, dict(data.pop("hseapp", {}) or {}), "hseapp"))
 
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []

@@ -1,6 +1,7 @@
 """Main screen layout (§2). All coordinates for the base frame live here."""
 
 import datetime as dt
+import functools
 
 from .. import protocol
 from ..model import ScreenModel
@@ -133,6 +134,23 @@ def _due_label(due: dt.date, today: dt.date) -> str:
     return due.strftime("%b %d").replace(" 0", " ")
 
 
+DEADLINE_TEXT_X = PAD + 40  # after the category and source icons
+DUE_SAMPLES = ("tomorrow", "overdue", "today", "Sep 30")
+
+
+@functools.cache
+def deadline_title_width() -> float:
+    """Room for a deadline title next to the widest due label: the budget Haiku writes for (§7.7)."""
+    c = Canvas()
+    f = fonts.inter(16, BODY)
+    right = max(c.width(s, f) for s in DUE_SAMPLES)
+    return DEADLINES[2] - DEADLINE_TEXT_X - PAD - right - 8
+
+
+def deadline_title_fits(title: str) -> bool:
+    return Canvas().width(title, fonts.inter(16, BODY)) <= deadline_title_width()
+
+
 def _deadlines(c: Canvas, m: ScreenModel) -> None:
     today = m.today
     # Upcoming by date first, then overdue ones (shown for 3 days after the due date, §7.2).
@@ -140,15 +158,20 @@ def _deadlines(c: Canvas, m: ScreenModel) -> None:
     overdue = sorted((d for d in m.deadlines if today - dt.timedelta(days=3) <= d.due < today),
                      key=lambda d: d.due, reverse=True)
     items = upcoming + overdue
-    more = len(items) - _rows(DEADLINES)
+    first = 1 if m.deadlines_problem else 0
+    room = _rows(DEADLINES) - first
+    more = len(items) - room
     _block_header(c, DEADLINES, "Deadlines", f"+{more}" if more > 0 else "")
     x = DEADLINES[0]
-    if not items:
+    if m.deadlines_problem:
+        _row(c, DEADLINES, 0, m.deadlines_problem, left_x=x + DEADLINE_TEXT_X)
+        c.icon("mdi:alert-circle-outline", x + PAD + 7, _row_y(DEADLINES, 0) + 8, 15, fill=BLACK)
+    elif not items:
         _row(c, DEADLINES, 0, "no deadlines")
-    for i, d in enumerate(items[: _rows(DEADLINES)]):
+    for i, d in enumerate(items[:room], start=first):
         urgent = 0 <= (d.due - today).days <= 1
         fg = WHITE if urgent else BLACK
-        _row(c, DEADLINES, i, d.title, _due_label(d.due, today), left_x=x + PAD + 40, inverted=urgent)
+        _row(c, DEADLINES, i, d.title, _due_label(d.due, today), left_x=x + DEADLINE_TEXT_X, inverted=urgent)
         cy = _row_y(DEADLINES, i) + 8
         c.icon(CATEGORY_ICONS.get(d.category), x + PAD + 7, cy, 15, fill=fg)
         c.icon(SOURCE_ICONS.get(d.source), x + PAD + 26, cy, 15, fill=fg)

@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EMULATOR_DIR = ROOT / "emulator"
 FONTS_DIR = ROOT / "assets" / "fonts"
 MDI_DIR = ROOT / "assets" / "mdi"
+PAGES_DIR = ROOT / "pages"
 
 HUB = web.AppKey("hub", Hub)
 
@@ -124,6 +125,26 @@ async def put_demo(request: web.Request) -> web.Response:
     return web.json_response(demo)
 
 
+async def hseapp_page(request: web.Request) -> web.FileResponse:
+    return web.FileResponse(PAGES_DIR / "hseapp.html", headers={"Cache-Control": "no-store"})
+
+
+async def hseapp_login_url(request: web.Request) -> web.Response:
+    _require_api_token(request)
+    hub = _hub(request)
+    return web.json_response({"url": hub.hseapp.auth.login_url(), "logged_in": hub.hseapp.auth.logged_in})
+
+
+async def hseapp_login(request: web.Request) -> web.Response:
+    _require_api_token(request)
+    data = await _json(request)
+    try:
+        await _hub(request).hseapp.login(str(data.get("url", "")))
+    except ValueError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    return web.json_response({"ok": True})
+
+
 async def emulator_index(request: web.Request) -> web.FileResponse:
     return web.FileResponse(EMULATOR_DIR / "index.html", headers={"Cache-Control": "no-store"})
 
@@ -147,6 +168,9 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     app.router.add_get("/api/demo", get_demo)
     app.router.add_put("/api/demo", put_demo)
     app.router.add_get("/frame.png", frame_png)
+    app.router.add_get("/hseapp", hseapp_page)
+    app.router.add_get("/api/hseapp/login", hseapp_login_url)
+    app.router.add_post("/api/hseapp/login", hseapp_login)
     app.router.add_get("/", root)
     app.router.add_get("/emu", emulator_index)
     app.router.add_static("/emu/static", EMULATOR_DIR)
@@ -162,7 +186,7 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
 
     if periodic:
         async def background(app: web.Application):
-            tasks = [asyncio.create_task(hub.run_periodic()), asyncio.create_task(hub.grades.run())]
+            tasks = [asyncio.create_task(c) for c in (hub.run_periodic(), hub.grades.run(), hub.university.examplen())]
             yield
             for task in tasks:
                 task.cancel()

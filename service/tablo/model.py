@@ -72,6 +72,7 @@ class ScreenModel:
     weather: WeatherNow | None = None
     forecast: tuple[HourForecast, ...] = ()
     deadlines: tuple[Deadline, ...] = ()
+    deadlines_problem: str | None = None  # e.g. "HSE login needed": first row of the block
     grades: tuple[Grade, ...] = ()
     grades_problem: str | None = None  # shown instead of "no new grades" when the source is failing
     news: tuple[NewsItem, ...] = ()

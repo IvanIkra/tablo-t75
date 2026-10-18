@@ -1,6 +1,7 @@
 """Run the service: python -m tablo [--config config.yaml]."""
 
 import argparse
+import json
 import logging
 import os
 from pathlib import Path
@@ -9,6 +10,8 @@ from aiohttp import web
 
 from . import config
 from .app import create_app
+from .sources.hseapp import Auth
+from .store import Store
 
 
 def load_env(path: Path) -> None:
@@ -27,7 +30,13 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=Path("config.yaml"))
     parser.add_argument("--data", type=Path, default=Path("data"), help="directory for saved state")
     parser.add_argument("--log-level", default="INFO")
+    parser.add_argument("--import-hseapp-token", type=Path, metavar="FILE",
+                        help="seed the the university app login from a saved Keycloak token response, then exit")
     args = parser.parse_args()
+    if args.import_hseapp_token:
+        Auth(Store(args.data / "tablo.db")).import_tokens(json.loads(args.import_hseapp_token.read_text()))
+        print("the university app login saved")
+        return
     load_env(Path(".env"))
 
     logging.basicConfig(level=args.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")

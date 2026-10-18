@@ -14,6 +14,7 @@ from aiohttp import WSMsgType, web
 from . import builder, protocol
 from .config import Config, parse_demo
 from .llm import Haiku
+from .sources import hseapp
 from .sources.grades import GradesSource, LayoutProvider
 from .store import Store
 from .render import overlays, screen
@@ -46,6 +47,15 @@ class Hub:
             get_cfg=lambda: self.cfg,
             store=self.store,
             layouts=LayoutProvider(self.llm, self.store),
+            on_change=lambda: self.schedule_render(0.5),
+            now=self.now,
+        )
+        self.hseapp = hseapp.HseAppSource(
+            get_cfg=lambda: self.cfg,
+            store=self.store,
+            auth=hseapp.Auth(self.store),
+            labels=hseapp.LabelProvider(self.llm, self.store, budget=round(screen.deadline_title_width() / 8.1),
+                                        fits=screen.deadline_title_fits),
             on_change=lambda: self.schedule_render(0.5),
             now=self.now,
         )
@@ -102,7 +112,8 @@ class Hub:
         """Render the main screen; returns the current base frame (new or unchanged)."""
         async with self._render_lock:
             model = builder.build(self.now(), self.cfg, self.active_ha, grades=self.grades.current(),
-                                  grades_problem=self.grades.problem())
+                                  grades_problem=self.grades.problem(), deadlines=self.hseapp.current(),
+                                  deadlines_problem=self.hseapp.problem())
             canvas = await asyncio.to_thread(screen.render, model, self.cfg.display.font_mode)
             payload = await asyncio.to_thread(_payload, canvas)
             self.synced_at = self.now()
@@ -313,6 +324,7 @@ class Hub:
                 "llm": self.llm.available,
                 "sheets": {sid: vars(s) for sid, s in self.grades.status.items()},
             },
+            "hseapp": vars(self.hseapp.status),
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
         }
 

@@ -22,6 +22,19 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest -q
 ```
 
+## Источники
+
+Личные настройки — в `config.local.yaml` (не в git, накладывается поверх `config.yaml`), ключ Anthropic — в `.env`. Состояние — в `data/tablo.db`.
+
+- **Оценки** (этап 2): секция `grades` — ФИО и ссылки на таблицы.
+- **Дедлайны the university app** (этап 3): нужен вход приложения. Один раз засеять из сохранённого ответа Keycloak:
+
+  ```bash
+  .venv/bin/python -m tablo --import-hseapp-token ../research/hseapp/captures/refresh-response.json
+  ```
+
+  Дальше сервис сам обновляет токен. Если на экране *HSE login needed* — войти заново на <http://localhost:8765/hseapp>.
+
 ## Что где
 
 | Файл | Что |
@@ -33,6 +46,9 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 | `tablo/model.py`, `tablo/builder.py` | Модель экрана и её сборка из источников |
 | `tablo/render/` | Вёрстка (Pillow), значки погоды, QR и сообщения, упаковка в 1 бит |
 | `tablo/ha.py` | Фейковый HA: 5 светильников, VPN-точка, датчик; Tuya отвечает с задержкой 2 с |
+| `tablo/sources/` | Источники: `grades.py` (Google Таблицы), `hseapp.py` (дедлайны the university app) |
+| `tablo/llm.py`, `tablo/store.py` | Haiku со структурированным ответом; SQLite |
+| `pages/hseapp.html` | Страница повторного входа в the university app |
 | `tablo/stub.py` | Демо-данные блоков |
 | `emulator/` | Эмулятор платы: та же логика, что будет в прошивке |
 | `assets/` | Шрифты Inter (OFL) и Material Design Icons (Pictogrammers Free License) |
