@@ -1,12 +1,17 @@
-"""Connecting, importing the config, entities, actions and the HSE login notice."""
+"""Connecting, importing the config, entities, actions, the HSE login notice and the brand images."""
+
+from pathlib import Path
 
 from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.setup import async_setup_component
 from tablo import config as service_config
 
 from custom_components.tablo.const import DOMAIN, LOGIN_NOTIFICATION, OPT_CONFIG
 from .conftest import TOKEN
+
+BRAND = Path(__file__).resolve().parents[1] / "custom_components" / DOMAIN / "brand"
 
 
 async def test_flow_imports_the_service_config(hass: HomeAssistant, entry, hub):
@@ -113,3 +118,12 @@ async def test_config_is_pushed_again_after_the_service_restarts(hass: HomeAssis
     coordinator.pushed = None  # what a failed poll leaves
     await coordinator.async_refresh()
     assert hub.cfg.button(2).short.entity == "light.ceiling_light"
+
+
+async def test_brand_images_served(hass: HomeAssistant, hass_client):
+    assert await async_setup_component(hass, "brands", {})
+    client = await hass_client()
+    for image in ("icon.png", "logo@2x.png", "dark_icon.png", "dark_logo.png"):
+        resp = await client.get(f"/api/brands/integration/{DOMAIN}/{image}")
+        assert resp.status == 200, image
+        assert await resp.read() == (BRAND / image).read_bytes(), image
