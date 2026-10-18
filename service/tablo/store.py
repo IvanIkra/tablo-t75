@@ -36,6 +36,15 @@ create table if not exists subjects (
     abbr text not null,         -- course prefix for deadline labels: Calc, DM
     manual integer not null default 0  -- set by hand (HA): Haiku never overwrites it
 );
+create table if not exists news_posts (
+    key text primary key,       -- "tg:example_se/23"; mail later
+    source text not null,       -- "tg" | "mail"
+    origin text not null,       -- channel or sender
+    posted_at text not null,    -- local time
+    body text not null,         -- plain text as Haiku reads it
+    study integer not null,
+    parsed_at text              -- set once Haiku has read it
+);
 """
 
 

@@ -114,6 +114,22 @@ class Ical:
     poll_minutes: int = 60
 
 
+@dataclass
+class Channel:
+    name: str  # without "@"
+    study: bool = False  # study channels are polled more often and their posts rank higher
+
+
+@dataclass
+class News:
+    """§7.5: public Telegram channels through t.me/s (mail comes later), read by Haiku."""
+
+    channels: list[Channel] = field(default_factory=list)
+    ttl_hours: int = 24  # news lifetime; also how far back the first poll of a channel reaches
+    study_poll_minutes: int = 5
+    poll_minutes: int = 15
+
+
 DEMO_KEYS = ("weather", "deadlines", "grades", "news", "classes", "ha")
 
 
@@ -134,6 +150,7 @@ class Config:
     grades: Grades = field(default_factory=Grades)
     hseapp: HseApp = field(default_factory=HseApp)
     ical: Ical = field(default_factory=Ical)
+    news: News = field(default_factory=News)
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -184,6 +201,19 @@ def from_dict(data: dict) -> Config:
 
     cfg.hseapp = HseApp(**_known(HseApp, dict(data.pop("hseapp", {}) or {}), "hseapp"))
     cfg.ical = Ical(**_known(Ical, dict(data.pop("ical", {}) or {}), "ical"))
+
+    news = dict(data.pop("news", {}) or {})
+    channels = []
+    for raw in news.pop("channels", []) or []:
+        raw = {"name": raw} if isinstance(raw, str) else dict(raw)
+        channel = Channel(**_known(Channel, raw, "news.channels"))
+        channel.name = channel.name.strip().rstrip("/").rsplit("/", 1)[-1].lstrip("@")
+        if not channel.name:
+            raise ConfigError("news.channels: empty channel name")
+        channels.append(channel)
+    if len({c.name.casefold() for c in channels}) != len(channels):
+        raise ConfigError("news.channels: duplicate channels")
+    cfg.news = News(channels=channels, **_known(News, news, "news"))
 
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []

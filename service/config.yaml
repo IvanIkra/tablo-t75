@@ -28,6 +28,14 @@ overlays:
   qr_duration_s: 20
   message_duration_s: 30
 
+news:
+  channels:
+    - {name: example_se, study: true}   # ПИ объявления
+    - example_news3
+    - example_news2
+    - example_news1
+  ttl_hours: 24
+
 wifi_networks:
   - {ssid: Home, password: change-me, security: WPA}
   - {ssid: VPN AP, password: change-me-too, security: WPA}

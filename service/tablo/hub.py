@@ -14,7 +14,7 @@ from aiohttp import WSMsgType, web
 from . import builder, protocol
 from .config import Config, parse_demo
 from .llm import Haiku
-from .sources import hseapp, ical
+from .sources import hseapp, ical, telegram
 from .sources.grades import GradesSource, LayoutProvider
 from .store import Store
 from .subjects import Subjects
@@ -70,6 +70,8 @@ class Hub:
             on_change=lambda: self.schedule_render(0.5),
             now=self.now,
         )
+        # Saves new posts only; they reach the screen once Haiku has read them.
+        self.telegram = telegram.TelegramSource(get_cfg=lambda: self.cfg, store=self.store, now=self.now)
         self.devices: dict[str, Device] = {}
         self.base: protocol.Frame | None = None
         self.synced_at: dt.datetime | None = None
@@ -341,6 +343,10 @@ class Hub:
             },
             "hseapp": vars(self.hseapp.status),
             "ical": vars(self.ical.status),
+            "telegram": {
+                "waiting": self.telegram.waiting(),
+                "channels": {name: vars(st) for name, st in self.telegram.status.items()},
+            },
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
         }
 
