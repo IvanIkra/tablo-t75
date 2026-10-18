@@ -1,0 +1,27 @@
+# Production run on server (§12): cd ~/tablo && docker compose up -d --build
+# Bridge network, not host: with network_mode: host the container would take the host's DNS,
+# so DNS is set explicitly.
+services:
+  tablo:
+    build: .
+    image: tablo:latest
+    container_name: tablo
+    restart: unless-stopped
+    ports:
+      # One LAN address only: another service on the host may already hold 127.0.0.1:8765.
+      - "192.168.1.50:8765:8765"
+    dns:
+      - 192.168.1.1
+      - 1.1.1.1
+    env_file: .env
+    environment:
+      TABLO_HA_URL: http://192.168.1.50:8123
+      TZ: Europe/Moscow
+    volumes:
+      - ./data:/app/data
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
