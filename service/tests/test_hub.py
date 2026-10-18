@@ -131,3 +131,10 @@ async def test_demo_switches_turn_off_fake_ha_and_persist(client, tmp_path):
 
     resp = await client.put("/api/demo", json={"bogus": True}, headers=AUTH)
     assert resp.status == 400
+
+
+async def test_emulator_files_and_fonts_are_revalidated(client):
+    for path in ("/emu/static/emu.js", "/fonts/pixel/clock-64.txt", "/mdi/materialdesignicons-webfont.ttf"):
+        resp = await client.get(path)
+        assert resp.status == 200 and resp.headers["Cache-Control"] == "no-cache", path
+    assert (await client.get("/emu")).headers["Cache-Control"] == "no-store"

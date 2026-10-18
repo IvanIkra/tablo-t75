@@ -243,6 +243,15 @@ async def root(request: web.Request) -> web.Response:
     raise web.HTTPFound("/emu")
 
 
+STATIC_PREFIXES = ("/emu/static/", "/fonts/", "/mdi/")
+
+
+async def revalidate_static(request: web.Request, response: web.StreamResponse) -> None:
+    """Emulator code and fonts: the browser asks again each time (304 if unchanged), so a reload picks up a deploy."""
+    if request.path.startswith(STATIC_PREFIXES):
+        response.headers["Cache-Control"] = "no-cache"
+
+
 def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: bool = True) -> web.Application:
     """data_dir keeps the config last pushed by HA and the demo switches.
 
@@ -276,6 +285,7 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     app.router.add_static("/emu/static", EMULATOR_DIR)
     app.router.add_static("/fonts", FONTS_DIR)
     app.router.add_static("/mdi", MDI_DIR)
+    app.on_response_prepare.append(revalidate_static)
 
     async def close_devices(app: web.Application) -> None:
         # Otherwise shutdown waits for open device sockets to time out.
