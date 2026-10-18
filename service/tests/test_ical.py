@@ -1,5 +1,6 @@
 """Timetable from iCal and the subject dictionary, against a fake feed (no real link)."""
 
+import asyncio
 import datetime as dt
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -114,6 +115,22 @@ async def test_subject_too_wide_gets_one_retry():
     got = await s.resolve(["Discrete Mathematics"])
     assert got["Discrete Mathematics"].title == "Discrete Math"
     assert len(llm.prompts) == 2
+
+
+async def test_concurrent_resolves_ask_each_name_once():
+    llm = FakeLLM()
+    ask = llm.json
+
+    async def slow(*args, **kwargs):
+        await asyncio.sleep(0.01)  # both sources are waiting on Haiku at once, as at start-up
+        return await ask(*args, **kwargs)
+
+    llm.json = slow
+    s = subjects(llm)
+    await asyncio.gather(s.resolve(["Algebra"]), s.resolve(["Algebra", "Discrete Mathematics"]))
+    assert len(llm.prompts) == 2
+    assert '- id 0: "Discrete Mathematics"' in llm.prompts[1]
+    assert '"Algebra": title "Algebra"' in llm.prompts[1]  # known by then, not asked again
 
 
 async def test_manual_name_is_kept():
