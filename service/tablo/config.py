@@ -130,6 +130,19 @@ class News:
     poll_minutes: int = 15
 
 
+@dataclass
+class Mail:
+    """§7.5: the @edu.hse.ru box over IMAP. user and password come from TABLO_MAIL_USER / TABLO_MAIL_PASSWORD."""
+
+    enabled: bool = True
+    host: str = "imap.yandex.ru"
+    port: int = 993
+    folder: str = "INBOX"
+    poll_minutes: int = 5
+    user: str = ""
+    password: str = ""
+
+
 DEMO_KEYS = ("weather", "deadlines", "grades", "news", "classes", "ha")
 
 
@@ -151,6 +164,7 @@ class Config:
     hseapp: HseApp = field(default_factory=HseApp)
     ical: Ical = field(default_factory=Ical)
     news: News = field(default_factory=News)
+    mail: Mail = field(default_factory=Mail)
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -214,6 +228,7 @@ def from_dict(data: dict) -> Config:
     if len({c.name.casefold() for c in channels}) != len(channels):
         raise ConfigError("news.channels: duplicate channels")
     cfg.news = News(channels=channels, **_known(News, news, "news"))
+    cfg.mail = Mail(**_known(Mail, dict(data.pop("mail", {}) or {}), "mail"))
 
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []
@@ -252,6 +267,8 @@ def _apply_env(cfg: Config) -> None:
     cfg.device_token = os.environ.get("TABLO_DEVICE_TOKEN", cfg.device_token)
     cfg.api_token = os.environ.get("TABLO_API_TOKEN", cfg.api_token)
     cfg.ical.url = os.environ.get("TABLO_ICAL_URL", cfg.ical.url)
+    cfg.mail.user = os.environ.get("TABLO_MAIL_USER", cfg.mail.user)
+    cfg.mail.password = os.environ.get("TABLO_MAIL_PASSWORD", cfg.mail.password)
     if "TABLO_PORT" in os.environ:
         cfg.port = int(os.environ["TABLO_PORT"])
 

@@ -201,7 +201,7 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     if periodic:
         async def background(app: web.Application):
             runs = (hub.run_periodic(), hub.grades.run(), hub.university.examplen(), hub.ical.run(),
-                    hub.telegram.run(), hub.news.run())
+                    hub.telegram.run(), hub.mail.run(), hub.news.run())
             tasks = [asyncio.create_task(c) for c in runs]
             yield
             for task in tasks:

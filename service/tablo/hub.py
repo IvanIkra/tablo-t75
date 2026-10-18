@@ -14,7 +14,7 @@ from aiohttp import WSMsgType, web
 from . import builder, news, protocol
 from .config import Config, parse_demo
 from .llm import Haiku
-from .sources import hseapp, ical, telegram
+from .sources import hseapp, ical, mail, telegram
 from .sources.grades import GradesSource, LayoutProvider
 from .store import Store
 from .subjects import Subjects
@@ -85,6 +85,7 @@ class Hub:
         # Saves new posts only; they reach the screen once Haiku has read them.
         self.telegram = telegram.TelegramSource(get_cfg=lambda: self.cfg, store=self.store, now=self.now,
                                                 on_new=self.news.wake)
+        self.mail = mail.MailSource(get_cfg=lambda: self.cfg, store=self.store, now=self.now, on_new=self.news.wake)
         self.devices: dict[str, Device] = {}
         self.base: protocol.Frame | None = None
         self.synced_at: dt.datetime | None = None
@@ -360,6 +361,7 @@ class Hub:
             "hseapp": vars(self.hseapp.status),
             "ical": vars(self.ical.status),
             "news": vars(self.news.status),
+            "mail": {"configured": self.mail.configured, **vars(self.mail.status)},
             "telegram": {
                 "waiting": self.telegram.waiting(),
                 "channels": {name: vars(st) for name, st in self.telegram.status.items()},
