@@ -1597,8 +1597,7 @@ advance 18 left 1 top 13
 .....#######....
 
 glyph 0066 f
-advance 12 left 0 top 7
-........#..
+advance 12 left 0 top 8
 .....######
 ....#######
 ...########
@@ -1894,7 +1893,7 @@ advance 19 left 1 top 13
 ............####
 
 glyph 0072 r
-advance 12 left 2 top 12
+advance 12 left 2 top 13
 ####..###
 ####.####
 #########

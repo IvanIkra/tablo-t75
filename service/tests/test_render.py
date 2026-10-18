@@ -80,6 +80,27 @@ def test_pixel_text_keeps_one_baseline_and_falls_back_to_freetype():
     assert c.width("Oct 21", font) == pixelfont.width(pixelfont.lookup(font), font, "Oct 21")
 
 
+@pytest.mark.parametrize("name", ["Inter-Medium-15", "Inter-Medium-16", "Inter-SemiBold-16", "Inter-SemiBold-30", "clock-64"])
+def test_letters_and_digits_stand_on_common_lines(name):
+    pf = pixelfont.load(pixelfont.PIXEL_DIR / f"{name}.txt")
+    groups = ["ABCDEFGHIJKLMNOPRSTUVWXYZ", "0123456789", "acemnorsuvwxz", "bdfhkl"]
+    for chars in groups:
+        spans = {ch: (pf.glyphs[ch].top, pf.glyphs[ch].top + len(pf.glyphs[ch].rows)) for ch in chars if ch in pf.glyphs}
+        assert len(set(spans.values())) <= 1, spans
+        if spans:
+            assert next(iter(spans.values()))[1] == pf.ascent  # last row right above the baseline
+
+
+def test_clock_digits_fit_the_firmware_zone():
+    pf = pixelfont.load(pixelfont.PIXEL_DIR / "clock-64.txt")
+    x, y, w, h = protocol.FIRMWARE_ZONES["clock"]
+    widths = {sum(pf.glyphs[ch].advance for ch in f"{hh:02d}:{mm:02d}") for hh in range(24) for mm in range(60)}
+    assert widths == {174}  # one width whatever the time
+    assert 6 + 174 <= w  # the emulator and the firmware start at x + 6
+    right = max(6 + 40 * 3 + 14 + pf.glyphs[d].left + len(pf.glyphs[d].rows[0]) for d in "0123456789")
+    assert right <= w
+
+
 def test_due_labels():
     today = dt.date(2026, 10, 18)
     assert _due_label(today, today) == "today"

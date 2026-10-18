@@ -164,6 +164,56 @@ function drawZone(buf, rect, fn, invert = false) {
   }
 }
 
+// ---------- pixel fonts: the same text files as the service (§6.3), and later the firmware ----------
+const PIXEL = {};  // clock: digits of the clock zone, date: Inter Medium 16
+
+function parsePixelFont(text) {
+  const lines = text.split("\n");
+  const pf = { glyphs: new Map() };
+  let i = 0;
+  for (; i < lines.length && !lines[i].startsWith("glyph "); i++) {
+    const [k, v] = lines[i].split(" ");
+    if (k === "ascent" || k === "descent") pf[k] = Number(v);
+  }
+  while (i < lines.length) {
+    const ch = String.fromCodePoint(parseInt(lines[i].split(" ")[1], 16));
+    const f = lines[i + 1].split(" ");
+    const g = { rows: [] };
+    for (let j = 0; j < f.length; j += 2) g[f[j]] = Number(f[j + 1]);
+    for (i += 2; i < lines.length && lines[i] && !lines[i].startsWith("glyph "); i++) g.rows.push(lines[i]);
+    pf.glyphs.set(ch, g);
+    while (i < lines.length && !lines[i]) i++;
+  }
+  return pf;
+}
+
+async function loadPixelFonts() {
+  const load = async (name) => parsePixelFont(await (await fetch(`/fonts/pixel/${name}.txt`)).text());
+  try {
+    [PIXEL.clock, PIXEL.date] = await Promise.all([load("clock-64"), load("Inter-Medium-16")]);
+  } catch (err) {
+    log("!", `pixel fonts not loaded, drawing with Inter: ${err}`);
+  }
+}
+
+// Text from a pixel font straight into buf, clipped to rect; x is the pen, baseline the y of the baseline.
+function drawPixelText(buf, rect, pf, x, baseline, text) {
+  const [rx, ry, rw, rh] = rect;
+  const top = baseline - pf.ascent;
+  for (const ch of text) {
+    const g = pf.glyphs.get(ch) || pf.glyphs.get(" ");
+    g.rows.forEach((row, r) => {
+      const y = top + g.top + r;
+      if (y < ry || y >= ry + rh) return;
+      for (let c = 0; c < row.length; c++) {
+        const xx = x + g.left + c;
+        if (row[c] === "#" && xx >= rx && xx < rx + rw) buf[y * W + xx] = 1;
+      }
+    });
+    x += g.advance;
+  }
+}
+
 // ---------- firmware-drawn parts ----------
 function serviceOffline() {
   return !st.connected && Date.now() - st.offlineSince > st.cfg.offline_after_s * 1000;
@@ -172,12 +222,19 @@ function serviceOffline() {
 function drawFirmwareZones(buf) {
   const p = nowParts();
   const [cx, cy] = st.cfg.zones.clock;
+  const date = `${p.weekday}, ${p.month} ${p.day} · wk ${semesterWeek(p)}`;
   drawZone(buf, st.cfg.zones.clock, (c) => {
+    if (PIXEL.clock) return;  // drawn from the pixel fonts below
     c.font = "700 64px InterEmu";
     c.fillText(p.hhmm, cx + 6, cy + 66);
     c.font = "500 16px InterEmu";
-    c.fillText(`${p.weekday}, ${p.month} ${p.day} · wk ${semesterWeek(p)}`, cx + 8, cy + 90);
+    c.fillText(date, cx + 8, cy + 90);
   });
+  if (PIXEL.clock) {
+    // Digits of one width: "HH:MM" is always 174 px and fits the 184 px zone.
+    drawPixelText(buf, st.cfg.zones.clock, PIXEL.clock, cx + 6, cy + 66, p.hhmm);
+    drawPixelText(buf, st.cfg.zones.clock, PIXEL.date, cx + 8, cy + 90, date);
+  }
 
   const zs = st.cfg.zones.status;
   const [sx, sy, sw] = zs;
@@ -556,7 +613,7 @@ async function start() {
     new FontFace("InterEmu", "url(/fonts/Inter-Bold.ttf)", { weight: "700" }),
     new FontFace("MDIEmu", "url(/mdi/materialdesignicons-webfont.ttf)"),
   ];
-  await Promise.all(faces.map((f) => f.load().then(() => document.fonts.add(f))));
+  await Promise.all([...faces.map((f) => f.load().then(() => document.fonts.add(f))), loadPixelFonts()]);
   present(true);
   connect();
   setupDemo();
