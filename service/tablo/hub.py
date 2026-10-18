@@ -326,15 +326,26 @@ class Hub:
         synced = self.synced_at.strftime("%H:%M") if self.synced_at else None
         ha = self.active_ha
         message = {"type": "health", "ha": bool(ha and ha.connected), "synced_at": synced}
-        last = self.store.llm_runs(limit=1)
-        if last:
-            run = last[0]
-            message["llm"] = {  # for the diagnostics screen (§4)
-                "at": self._local(run["at"]).strftime("%H:%M"), "task": run["task"], "ok": run["ok"],
-                "tokens": run["input_tokens"] + run["output_tokens"] + run["cache_write"] + run["cache_read"],
-                "cost_usd": run["cost_usd"], "duration_s": run["duration_s"],
-            }
+        status = self.llm_status()
+        message["llm"] = {  # the LLM block of the diagnostics screen (§4)
+            "model": status["model"],
+            "available": status["available"],
+            "today": status["today"],
+            "days30": status["days30"],
+            "last": self._llm_short(status["last"]),
+            "failure": self._llm_short(status["failure"]),
+        }
         return message
+
+    def _llm_short(self, run: dict | None) -> dict | None:
+        """A run as the panel shows it: HH:MM today, "Oct 18 00:41" before; a short error."""
+        if run is None:
+            return None
+        at = self._local(run["at"])
+        when = f"{at:%H:%M}" if at.date() == self.now().date() else f"{at:%b} {at.day} {at:%H:%M}"
+        return {"at": when, "task": run["task"], "ok": run["ok"],
+                "tokens": _run_tokens(run), "cost_usd": run["cost_usd"], "duration_s": run["duration_s"],
+                "error": (run["error"] or "")[:80] or None}
 
     # --- LLM runs (§6.6) ------------------------------------------------------
 
@@ -357,8 +368,10 @@ class Hub:
             "available": self.llm.available,
             "model": getattr(self.llm, "model", None),
             "last": runs[0] if runs else None,
+            "failure": self.store.llm_failing(),  # set while the calls keep failing
             "tasks": self.store.llm_last_by_task(),
             "today": self.store.llm_totals(since.isoformat(timespec="seconds")),
+            "days30": self.store.llm_totals((since - dt.timedelta(days=29)).isoformat(timespec="seconds")),
         }
 
     async def broadcast(self, message: dict) -> None:
@@ -537,6 +550,10 @@ class Hub:
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
             "llm": self.llm_status(),
         }
+
+
+def _run_tokens(run: dict) -> int:
+    return run["input_tokens"] + run["output_tokens"] + run["cache_write"] + run["cache_read"]
 
 
 def _payload(canvas: Canvas) -> bytes:

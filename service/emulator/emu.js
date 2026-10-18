@@ -4,7 +4,7 @@
 "use strict";
 
 const W = 800, H = 480, ROW = W / 8, PAYLOAD = ROW * H, HEADER = 20;
-const FW = "emu-0.4";
+const FW = "emu-0.5";
 const params = new URLSearchParams(location.search);
 const TOKEN = params.get("token") || "dev-device-token";
 const DEVICE = params.get("device") || "tablo-emu";
@@ -261,37 +261,56 @@ function drawFirmwareZones(buf) {
   });
 }
 
-// "00:58 · news · 3.2k tok · $0.0004 · 2.5 s" from health.llm, the last Haiku call (§6.6).
-function llmLine(run) {
-  if (!run) return "none";
-  const tok = run.tokens >= 1000 ? `${(run.tokens / 1000).toFixed(1)}k` : String(run.tokens);
-  const cost = run.cost_usd == null ? "$?" : `$${run.cost_usd.toFixed(run.cost_usd < 0.01 ? 4 : 3)}`;
-  if (!run.ok) return `${run.at} · ${run.task} · failed · ${tok} tok`;
-  return `${run.at} · ${run.task} · ${tok} tok · ${cost} · ${run.duration_s.toFixed(1)} s`;
+// ---------- diagnostics (long press on 8, §4) ----------
+const fmtTokens = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+const fmtCost = (usd) => usd == null ? "$?" : `$${usd.toFixed(usd < 0.01 ? 4 : usd < 1 ? 3 : 2)}`;
+const fmtTotals = (t) => t ? `${t.runs} requests · ${fmtTokens(t.tokens)} tokens · ${fmtCost(t.cost_usd)}` : "—";
+const hhmm = (ms) => new Date(ms).toLocaleTimeString("en-GB", { timeZone: st.cfg.tz_name, hour: "2-digit", minute: "2-digit" });
+
+// The LLM rows from health.llm (§6.6); "LLM failed" only while the calls keep failing.
+function llmRows(llm) {
+  if (!llm) return [["LLM", "unknown (service offline)"]];
+  const rows = [["LLM model", llm.available ? llm.model : `${llm.model} · no API key`],
+                ["LLM today", fmtTotals(llm.today)],
+                ["LLM 30 days", fmtTotals(llm.days30)]];
+  const last = llm.last;
+  rows.push(["Last LLM", last
+    ? `${last.at} · ${last.task} · ${last.ok ? `ok · ${fmtTokens(last.tokens)} tokens · ${fmtCost(last.cost_usd)}` : "failed"} · ${last.duration_s.toFixed(1)} s`
+    : "never"]);
+  if (llm.failure) rows.push(["LLM failed", `${llm.failure.at} · ${llm.failure.task} · ${llm.failure.error || "error"}`]);
+  return rows;
 }
 
 function drawDiag(buf) {
   const up = Math.floor((Date.now() - st.startedAt) / 1000);
-  const lines = [
-    ["Diagnostics", ""],
+  const rows = [
     ["IP", "emulator"],
     ["Wi-Fi", "-55 dBm"],
     ["Uptime", `${Math.floor(up / 3600)}h ${Math.floor(up / 60) % 60}m ${up % 60}s`],
     ["Firmware", FW],
     ["Free heap", "n/a (emulator)"],
-    ["Service", st.connected ? "connected" : `offline since ${new Date(st.offlineSince).toLocaleTimeString()}`],
+    ["Service", st.connected ? "connected" : `offline since ${hhmm(st.offlineSince)}`],
     ["Home Assistant", st.connected ? (st.health.ha ? "ok" : "down") : "unknown"],
-    ["Last frame", st.lastFrameAt ? `${new Date(st.lastFrameAt).toLocaleTimeString()} · id ${st.baseId}` : "none"],
+    ["Last frame", st.lastFrameAt ? `${hhmm(st.lastFrameAt)} · id ${st.baseId}` : "none"],
     ["Last sync", st.health.synced_at || "never"],
-    ["Last LLM", llmLine(st.health.llm)],
     ["Partial updates", String(st.partials)],
+    null,  // gap before the LLM block
+    ...llmRows(st.health.llm),
   ];
   drawZone(buf, [0, 0, W, H], (c) => {
-    lines.forEach(([k, v], i) => {
-      if (i === 0) { c.font = "700 34px InterEmu"; c.fillText(k, 40, 64); return; }
-      c.font = "600 22px InterEmu"; c.fillText(k, 40, 90 + i * 33);
-      c.font = "400 22px InterEmu"; c.fillText(v, 280, 90 + i * 33);
-    });
+    c.font = "700 30px InterEmu"; c.fillText("Diagnostics", 40, 48);
+    let y = 84;
+    for (const row of rows) {
+      if (row) {
+        const [k, v] = row;
+        c.font = "600 18px InterEmu"; c.fillText(k, 40, y);
+        c.font = "400 18px InterEmu";
+        let text = v;  // cut a long value (an error) to the screen
+        while (text.length > 1 && c.measureText(text).width > W - 230 - 30) text = text.slice(0, -2) + "…";
+        c.fillText(text, 230, y);
+      }
+      y += row ? 25 : 12;
+    }
   });
 }
 

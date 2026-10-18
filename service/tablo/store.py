@@ -130,6 +130,12 @@ class Store:
         rows = self.db.execute("select * from llm_runs where id in (select max(id) from llm_runs group by task)")
         return {r["task"]: self._llm_run(r) for r in rows}
 
+    def llm_failing(self) -> dict | None:
+        """The newest failed run if nothing has succeeded since: the LLM is failing now."""
+        row = self.db.execute("select * from llm_runs where ok = 0 and id > coalesce("
+                              "(select max(id) from llm_runs where ok = 1), 0) order by id desc limit 1").fetchone()
+        return self._llm_run(row) if row else None
+
     def llm_totals(self, since_utc: str) -> dict:
         row = self.db.execute("select count(*) n, coalesce(sum(cost_usd), 0) cost, "
                               "coalesce(sum(input_tokens + output_tokens + cache_write + cache_read), 0) tokens "
