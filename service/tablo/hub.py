@@ -75,10 +75,7 @@ class Hub:
             llm=self.llm,
             store=self.store,
             subjects=self.subjects,
-            budget=news.Budget(line=int(screen.news_text_width() / 8.1),
-                               label=int(screen.deadline_title_width() / 8.1),
-                               full_fits=screen.news_full_fits, short_fits=screen.news_short_fits,
-                               label_fits=screen.deadline_title_fits),
+            budget=news.screen_budget(),
             on_change=lambda: self.schedule_render(0.5),
             now=self.now,
         )
