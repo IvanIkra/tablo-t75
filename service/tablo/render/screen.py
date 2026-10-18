@@ -192,25 +192,79 @@ def _grades(c: Canvas, m: ScreenModel) -> None:
         _row(c, GRADES, i, g.label, value, right_font=fonts.inter(16, "semibold"))
 
 
+NEWS_TEXT_X = PAD + 22  # after the source icon
+NEWS_LINE_H = 20
+NEWS_GAP = 10  # between items: a 1-line item takes 30 px, a 2-line one 50 px (§7.7)
+TOP_RANK = 5  # importance + 1 for study
+
+
+def news_text_width() -> float:
+    """Width of a news line: the budget Haiku writes for (§7.7)."""
+    return NEWS[2] - NEWS_TEXT_X - PAD
+
+
+def news_full_fits(text: str) -> bool:
+    """The long version wraps into at most 2 lines without cutting a word."""
+    c, f = Canvas(), fonts.inter(16, BODY)
+    lines = c.wrap(text, f, news_text_width(), 99)
+    return len(lines) <= 2 and " ".join(lines) == " ".join(text.split())
+
+
+def news_short_fits(text: str) -> bool:
+    return Canvas().width(text, fonts.inter(16, BODY)) <= news_text_width()
+
+
+def layout_news(items, c: Canvas | None = None) -> list[tuple[object, list[str]]]:
+    """Which items to show and in how many lines; items come ranked (§7.7).
+
+    Top items (rank 5 and up: a study item to act on) get the long version first.
+    Then as many items as fit in one line each, then the long version for the
+    rest by rank while room is left. Importance 1 (ads, memes) only fills what remains.
+    """
+    c, f, w = c or Canvas(), fonts.inter(16, BODY), news_text_width()
+    room = NEWS[3] - HEADER_H - 16 + NEWS_GAP  # the last item needs no gap below
+
+    def cost(lines):
+        return len(lines) * NEWS_LINE_H + NEWS_GAP
+
+    full = [c.wrap(it.text, f, w, 2) for it in items]
+    short = [c.wrap(it.short or it.text, f, w, 1) for it in items]
+    chosen: dict[int, list[str]] = {}
+    used = 0
+
+    def add(indexes, versions):
+        nonlocal used
+        for k in indexes:
+            if k in chosen:
+                continue
+            if used + cost(versions[k]) > room:
+                break
+            chosen[k] = versions[k]
+            used += cost(versions[k])
+
+    add([k for k, it in enumerate(items) if it.rank >= TOP_RANK], full)
+    add([k for k, it in enumerate(items) if it.importance > 1], short)
+    for k in list(chosen):
+        extra = cost(full[k]) - cost(chosen[k])
+        if used + extra <= room:
+            chosen[k] = full[k]
+            used += extra
+    add([k for k, it in enumerate(items) if it.importance <= 1], short)
+    return [(items[k], chosen[k]) for k in sorted(chosen)]
+
+
 def _news(c: Canvas, m: ScreenModel) -> None:
     x, y, w, h = NEWS
     _block_header(c, NEWS, "News")
     f = fonts.inter(16, BODY)
-    line_h = 20
-    text_x = x + PAD + 22
-    max_w = x + w - PAD - text_x
     cy = y + HEADER_H + 8
-    bottom = y + h - 8
     if not m.news:
         c.text((x + PAD, cy), "no news", f)
-    for item in m.news:
-        lines = c.wrap(item.text, f, max_w, 2)
-        if cy + len(lines) * line_h > bottom:
-            break
+    for item, lines in layout_news(m.news, c):
         c.icon(SOURCE_ICONS.get(item.source), x + PAD + 7, cy + 9, 15)
         for j, line in enumerate(lines):
-            c.text((text_x, cy + j * line_h), line, f)
-        cy += len(lines) * line_h + 10
+            c.text((x + NEWS_TEXT_X, cy + j * NEWS_LINE_H), line, f)
+        cy += len(lines) * NEWS_LINE_H + NEWS_GAP
 
 
 CLASS_TEXT_X = PAD + 52  # after the start time

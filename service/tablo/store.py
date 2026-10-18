@@ -45,6 +45,25 @@ create table if not exists news_posts (
     study integer not null,
     parsed_at text              -- set once Haiku has read it
 );
+create table if not exists news_items (
+    id text primary key,        -- key of the post or letter it was written from
+    source text not null,
+    study integer not null,
+    posted_at text not null,    -- local time; the item ages from here
+    full text not null,         -- up to 2 lines of the column
+    short text not null,        -- 1 line
+    importance integer not null,
+    replaced_by text            -- a newer item on the same topic took its place
+);
+create table if not exists news_deadlines (
+    id integer primary key,
+    item text not null,         -- news item it came from
+    source text not null,
+    course text,                -- course abbreviation from the dictionary, for merging duplicates
+    label text not null,
+    due text not null,
+    moved_by integer            -- deadline that moved this one to another date
+);
 """
 
 

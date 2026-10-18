@@ -40,8 +40,15 @@ class Grade:
 
 @dataclass(frozen=True)
 class NewsItem:
-    text: str
+    text: str  # up to 2 lines
     source: str  # "tg" | "mail"
+    short: str = ""  # 1 line; empty = same as text
+    importance: int = 3  # 1-5; 1 (ads, memes) only fills space left over
+    study: bool = False
+
+    @property
+    def rank(self) -> int:
+        return self.importance + self.study
 
 
 @dataclass(frozen=True)

@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from aiohttp import WSMsgType, web
 
-from . import builder, protocol
+from . import builder, news, protocol
 from .config import Config, parse_demo
 from .llm import Haiku
 from .sources import hseapp, ical, telegram
@@ -70,8 +70,21 @@ class Hub:
             on_change=lambda: self.schedule_render(0.5),
             now=self.now,
         )
+        self.news = news.NewsSource(
+            get_cfg=lambda: self.cfg,
+            llm=self.llm,
+            store=self.store,
+            subjects=self.subjects,
+            budget=news.Budget(line=int(screen.news_text_width() / 8.1),
+                               label=int(screen.deadline_title_width() / 8.1),
+                               full_fits=screen.news_full_fits, short_fits=screen.news_short_fits,
+                               label_fits=screen.deadline_title_fits),
+            on_change=lambda: self.schedule_render(0.5),
+            now=self.now,
+        )
         # Saves new posts only; they reach the screen once Haiku has read them.
-        self.telegram = telegram.TelegramSource(get_cfg=lambda: self.cfg, store=self.store, now=self.now)
+        self.telegram = telegram.TelegramSource(get_cfg=lambda: self.cfg, store=self.store, now=self.now,
+                                                on_new=self.news.wake)
         self.devices: dict[str, Device] = {}
         self.base: protocol.Frame | None = None
         self.synced_at: dt.datetime | None = None
@@ -127,7 +140,10 @@ class Hub:
             classes, classes_label = self.ical.classes()
             model = builder.build(self.now(), self.cfg, self.active_ha, grades=self.grades.current(),
                                   grades_problem=self.grades.problem(),
-                                  deadlines=builder.merge_deadlines(self.hseapp.current(), self.ical.deadlines()),
+                                  # Each news deadline on its own: two posts may carry the same one.
+                                  deadlines=builder.merge_deadlines(self.hseapp.current(), self.ical.deadlines(),
+                                                                    *((d,) for d in self.news.deadlines())),
+                                  news=self.news.current(),
                                   deadlines_problem=self.hseapp.problem(),
                                   classes=classes, classes_label=classes_label,
                                   classes_problem=self.ical.problem())
@@ -343,6 +359,7 @@ class Hub:
             },
             "hseapp": vars(self.hseapp.status),
             "ical": vars(self.ical.status),
+            "news": vars(self.news.status),
             "telegram": {
                 "waiting": self.telegram.waiting(),
                 "channels": {name: vars(st) for name, st in self.telegram.status.items()},
