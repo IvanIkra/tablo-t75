@@ -64,6 +64,16 @@ async def frame_png(request: web.Request) -> web.Response:
     return web.Response(body=buf.getvalue(), content_type="image/png", headers={"Cache-Control": "no-store"})
 
 
+async def llm_runs(request: web.Request) -> web.Response:
+    """Every Haiku call, newest first (§6.6): ?limit=100&task=news."""
+    _require_api_token(request)
+    try:
+        limit = min(max(int(request.query.get("limit", "100")), 1), 10000)
+    except ValueError:
+        raise web.HTTPBadRequest(text="limit must be a number")
+    return web.json_response(_hub(request).store.llm_runs(limit, request.query.get("task") or None))
+
+
 async def overlay_qr(request: web.Request) -> web.Response:
     _require_api_token(request)
     data = await _json(request)
@@ -278,6 +288,7 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     app.router.add_post("/api/deadlines", add_deadline)
     app.router.add_patch("/api/deadlines/{uid}", edit_deadline)
     app.router.add_delete("/api/deadlines/{uid}", delete_deadline)
+    app.router.add_get("/api/llm/runs", llm_runs)
     app.router.add_get("/api/demo", get_demo)
     app.router.add_put("/api/demo", put_demo)
     app.router.add_get("/frame.png", frame_png)

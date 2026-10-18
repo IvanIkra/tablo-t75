@@ -51,6 +51,8 @@ class Hub:
         self.data_dir = data_dir
         self.store = Store(data_dir / "tablo.db" if data_dir else ":memory:")
         self.llm = llm or Haiku()
+        if hasattr(self.llm, "on_run"):
+            self.llm.on_run = self._on_llm_run
         self.grades = GradesSource(
             get_cfg=lambda: self.cfg,
             store=self.store,
@@ -323,7 +325,41 @@ class Hub:
     def health_message(self) -> dict:
         synced = self.synced_at.strftime("%H:%M") if self.synced_at else None
         ha = self.active_ha
-        return {"type": "health", "ha": bool(ha and ha.connected), "synced_at": synced}
+        message = {"type": "health", "ha": bool(ha and ha.connected), "synced_at": synced}
+        last = self.store.llm_runs(limit=1)
+        if last:
+            run = last[0]
+            message["llm"] = {  # for the diagnostics screen (§4)
+                "at": self._local(run["at"]).strftime("%H:%M"), "task": run["task"], "ok": run["ok"],
+                "tokens": run["input_tokens"] + run["output_tokens"] + run["cache_write"] + run["cache_read"],
+                "cost_usd": run["cost_usd"], "duration_s": run["duration_s"],
+            }
+        return message
+
+    # --- LLM runs (§6.6) ------------------------------------------------------
+
+    def _local(self, utc_iso: str) -> dt.datetime:
+        return dt.datetime.fromisoformat(utc_iso).astimezone(ZoneInfo(self.cfg.display.tz_name))
+
+    def _on_llm_run(self, run: dict) -> None:
+        """Every Haiku call goes to SQLite; the panel's diagnostics and HA learn of it at once."""
+        self.store.add_llm_run(run)
+        log.info("llm run: %s %s, %d+%d tokens, $%s, %.1f s", run["task"], "ok" if run["ok"] else run["error"],
+                 run["input_tokens"], run["output_tokens"], run["cost_usd"], run["duration_s"])
+        self._spawn(self.broadcast(self.health_message()))
+        self.notify("llm")
+
+    def llm_status(self) -> dict:
+        midnight = self.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        since = midnight.replace(tzinfo=ZoneInfo(self.cfg.display.tz_name)).astimezone(dt.UTC)
+        runs = self.store.llm_runs(limit=1)
+        return {
+            "available": self.llm.available,
+            "model": getattr(self.llm, "model", None),
+            "last": runs[0] if runs else None,
+            "tasks": self.store.llm_last_by_task(),
+            "today": self.store.llm_totals(since.isoformat(timespec="seconds")),
+        }
 
     async def broadcast(self, message: dict) -> None:
         for dev in list(self.devices.values()):
@@ -499,6 +535,7 @@ class Hub:
                 "channels": {name: vars(st) for name, st in self.telegram.status.items()},
             },
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
+            "llm": self.llm_status(),
         }
 
 

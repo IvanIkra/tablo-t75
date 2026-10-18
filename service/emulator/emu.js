@@ -4,7 +4,7 @@
 "use strict";
 
 const W = 800, H = 480, ROW = W / 8, PAYLOAD = ROW * H, HEADER = 20;
-const FW = "emu-0.3";
+const FW = "emu-0.4";
 const params = new URLSearchParams(location.search);
 const TOKEN = params.get("token") || "dev-device-token";
 const DEVICE = params.get("device") || "tablo-emu";
@@ -261,6 +261,15 @@ function drawFirmwareZones(buf) {
   });
 }
 
+// "00:58 · news · 3.2k tok · $0.0004 · 2.5 s" from health.llm, the last Haiku call (§6.6).
+function llmLine(run) {
+  if (!run) return "none";
+  const tok = run.tokens >= 1000 ? `${(run.tokens / 1000).toFixed(1)}k` : String(run.tokens);
+  const cost = run.cost_usd == null ? "$?" : `$${run.cost_usd.toFixed(run.cost_usd < 0.01 ? 4 : 3)}`;
+  if (!run.ok) return `${run.at} · ${run.task} · failed · ${tok} tok`;
+  return `${run.at} · ${run.task} · ${tok} tok · ${cost} · ${run.duration_s.toFixed(1)} s`;
+}
+
 function drawDiag(buf) {
   const up = Math.floor((Date.now() - st.startedAt) / 1000);
   const lines = [
@@ -274,13 +283,14 @@ function drawDiag(buf) {
     ["Home Assistant", st.connected ? (st.health.ha ? "ok" : "down") : "unknown"],
     ["Last frame", st.lastFrameAt ? `${new Date(st.lastFrameAt).toLocaleTimeString()} · id ${st.baseId}` : "none"],
     ["Last sync", st.health.synced_at || "never"],
+    ["Last LLM", llmLine(st.health.llm)],
     ["Partial updates", String(st.partials)],
   ];
   drawZone(buf, [0, 0, W, H], (c) => {
     lines.forEach(([k, v], i) => {
       if (i === 0) { c.font = "700 34px InterEmu"; c.fillText(k, 40, 64); return; }
-      c.font = "600 22px InterEmu"; c.fillText(k, 40, 90 + i * 36);
-      c.font = "400 22px InterEmu"; c.fillText(v, 280, 90 + i * 36);
+      c.font = "600 22px InterEmu"; c.fillText(k, 40, 90 + i * 33);
+      c.font = "400 22px InterEmu"; c.fillText(v, 280, 90 + i * 33);
     });
   });
 }

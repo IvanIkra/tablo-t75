@@ -49,6 +49,24 @@ async def test_entities_follow_the_panel(hass: HomeAssistant, entry, service):
     await client.close()
 
 
+async def test_llm_sensors_show_the_last_runs(hass: HomeAssistant, entry, hub):
+    import datetime as dt
+    assert hass.states.get("sensor.tablo_llm_run_news").state == "unknown"
+    at = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+    hub._on_llm_run({"at": at, "task": "news", "model": "claude-haiku-5-5", "ok": True, "error": None,
+                     "input_tokens": 3000, "output_tokens": 200, "cache_write": 0, "cache_read": 0,
+                     "cost_usd": 0.0004, "duration_s": 3.2})
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    news = hass.states.get("sensor.tablo_llm_run_news")
+    assert news.state != "unknown"
+    assert (news.attributes["input_tokens"], news.attributes["cost_usd"], news.attributes["duration_s"]) == (
+        3000, 0.0004, 3.2)
+    assert hass.states.get("sensor.tablo_llm_run_grades").state == "unknown"
+    cost = hass.states.get("sensor.tablo_llm_cost_today")
+    assert float(cost.state) == 0.0004 and cost.attributes["runs"] == 1
+
+
 async def service_client(service):
     from aiohttp.test_utils import TestClient
     client = TestClient(service)

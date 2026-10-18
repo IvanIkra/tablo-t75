@@ -37,7 +37,7 @@ class FakeLLM:
         self.names = dict(names)
         self.prompts = []
 
-    async def json(self, system, prompt, schema, max_tokens=8000):
+    async def json(self, system, prompt, schema, max_tokens=8000, task=None):
         self.prompts.append(prompt)
         items = []
         for line in prompt.splitlines():
@@ -106,7 +106,7 @@ async def test_subject_too_wide_gets_one_retry():
     llm = FakeLLM({"Discrete Mathematics": ("Discrete Mathematics", "DM")})
     s = subjects(llm)
 
-    async def answer(system, prompt, schema, max_tokens=8000):
+    async def answer(system, prompt, schema, max_tokens=8000, task=None):
         llm.prompts.append(prompt)
         title = "Discrete Math" if "too wide" in prompt else "Discrete Mathematics"
         return {"items": [{"id": "0", "title": title, "abbr": "DM"}]}

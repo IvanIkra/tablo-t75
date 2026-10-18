@@ -20,5 +20,6 @@ PRESSES = ("short", "long")
 ACTIONS = ("toggle", "script", "qr", "message", "event", "none")
 RUN_DOMAINS = ("script", "scene", "automation", "button", "input_button")
 SOURCES = ("grades", "hseapp", "ical", "news", "weather")
+LLM_TASKS = ("news", "grades", "deadlines", "subjects")  # what the service calls Haiku for (§6.6)
 
 LOGIN_NOTIFICATION = "tablo_hseapp_login"

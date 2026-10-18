@@ -201,6 +201,21 @@
       },
       "last_contact": {
         "name": "Last contact"
+      },
+      "llm_news": {
+        "name": "LLM run: news"
+      },
+      "llm_grades": {
+        "name": "LLM run: grades"
+      },
+      "llm_deadlines": {
+        "name": "LLM run: deadlines"
+      },
+      "llm_subjects": {
+        "name": "LLM run: subjects"
+      },
+      "llm_cost_today": {
+        "name": "LLM cost today"
       }
     }
   },

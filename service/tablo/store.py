@@ -68,6 +68,21 @@ create table if not exists hidden_deadlines (
     title text not null,
     due text not null
 );
+create table if not exists llm_runs (   -- every Haiku call, kept for good (§6.6)
+    id integer primary key,
+    at text not null,           -- UTC, ISO 8601
+    task text not null,         -- news, grades, deadlines, subjects
+    model text not null,
+    ok integer not null,
+    error text,
+    input_tokens integer not null,
+    output_tokens integer not null,
+    cache_write integer not null,
+    cache_read integer not null,
+    cost_usd real,              -- null for a model without known prices
+    duration_s real not null
+);
+create index if not exists llm_runs_at on llm_runs(at);
 create table if not exists news_deadlines (
     id integer primary key,
     item text not null,         -- news item it came from
@@ -91,6 +106,35 @@ class Store:
     def get_json(self, key: str):
         row = self.db.execute("select value from kv where key = ?", (key,)).fetchone()
         return json.loads(row["value"]) if row else None
+
+    # --- LLM runs ---------------------------------------------------------------
+
+    LLM_FIELDS = ("at", "task", "model", "ok", "error", "input_tokens", "output_tokens", "cache_write",
+                  "cache_read", "cost_usd", "duration_s")
+
+    def add_llm_run(self, run: dict) -> None:
+        with self.db:
+            self.db.execute(f"insert into llm_runs({', '.join(self.LLM_FIELDS)}) values({', '.join('?' * len(self.LLM_FIELDS))})",
+                            [run[f] for f in self.LLM_FIELDS])
+
+    def _llm_run(self, row) -> dict:
+        return {**{f: row[f] for f in self.LLM_FIELDS}, "ok": bool(row["ok"])}
+
+    def llm_runs(self, limit: int = 100, task: str | None = None) -> list[dict]:
+        """Newest first."""
+        where, args = ("where task = ?", [task]) if task else ("", [])
+        rows = self.db.execute(f"select * from llm_runs {where} order by id desc limit ?", [*args, limit])
+        return [self._llm_run(r) for r in rows]
+
+    def llm_last_by_task(self) -> dict[str, dict]:
+        rows = self.db.execute("select * from llm_runs where id in (select max(id) from llm_runs group by task)")
+        return {r["task"]: self._llm_run(r) for r in rows}
+
+    def llm_totals(self, since_utc: str) -> dict:
+        row = self.db.execute("select count(*) n, coalesce(sum(cost_usd), 0) cost, "
+                              "coalesce(sum(input_tokens + output_tokens + cache_write + cache_read), 0) tokens "
+                              "from llm_runs where at >= ?", (since_utc,)).fetchone()
+        return {"runs": row["n"], "cost_usd": round(row["cost"], 6), "tokens": row["tokens"]}
 
     def put_json(self, key: str, value) -> None:
         with self.db:
