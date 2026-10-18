@@ -151,11 +151,20 @@ def deadline_title_fits(title: str) -> bool:
     return Canvas().width(title, fonts.inter(16, BODY)) <= deadline_title_width()
 
 
+OVERDUE_DAYS = 3
+# Mail and Telegram cannot tell that the work was handed in, so their deadlines leave sooner (§7.2).
+OVERDUE_DAYS_BY_SOURCE = {"mail": 1, "tg": 1}
+
+
+def _overdue_days(d) -> int:
+    return OVERDUE_DAYS_BY_SOURCE.get(d.source, OVERDUE_DAYS)
+
+
 def _deadlines(c: Canvas, m: ScreenModel) -> None:
     today = m.today
-    # Upcoming by date first, then overdue ones (shown for 3 days after the due date, §7.2).
+    # Upcoming by date first, then overdue ones for a few days after the due date (§7.2).
     upcoming = sorted((d for d in m.deadlines if d.due >= today), key=lambda d: d.due)
-    overdue = sorted((d for d in m.deadlines if today - dt.timedelta(days=3) <= d.due < today),
+    overdue = sorted((d for d in m.deadlines if today - dt.timedelta(days=_overdue_days(d)) <= d.due < today),
                      key=lambda d: d.due, reverse=True)
     items = upcoming + overdue
     first = 1 if m.deadlines_problem else 0

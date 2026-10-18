@@ -139,8 +139,10 @@ class Hub:
             model = builder.build(self.now(), self.cfg, self.active_ha, grades=self.grades.current(),
                                   grades_problem=self.grades.problem(),
                                   # Each news deadline on its own: two posts may carry the same one.
-                                  deadlines=builder.merge_deadlines(self.hseapp.current(), self.ical.deadlines(),
-                                                                    *((d,) for d in self.news.deadlines())),
+                                  deadlines=builder.drop_done(
+                                      builder.merge_deadlines(self.hseapp.current(), self.ical.deadlines(),
+                                                              *((d,) for d in self.news.deadlines())),
+                                      self.hseapp.done()),
                                   news=self.news.current(),
                                   deadlines_problem=self.hseapp.problem(),
                                   classes=classes, classes_label=classes_label,

@@ -5,6 +5,7 @@ so the screen shows only what is real (§15).
 """
 
 import datetime as dt
+import re
 
 from . import stub
 from .config import Config
@@ -45,21 +46,38 @@ def home(ha) -> Home:
     )
 
 
+DONE_WINDOW_DAYS = 14  # an extension moves the date in an email, while the university app keeps the old one
+
+
+def _course(d: Deadline) -> str:
+    """The course abbreviation, or the first word of the title when the source gave none ('Safety HW 2')."""
+    return (d.course or d.title.split(" ", 1)[0]).casefold()
+
+
 def _work(d: Deadline) -> str:
     """The title without the course prefix, for comparing: 'Prog Midterm' -> 'midterm'."""
     title = " ".join(d.title.casefold().split())
-    if d.course and title.startswith(d.course.casefold() + " "):
-        title = title[len(d.course) + 1:]
+    course = _course(d)
+    if title.startswith(course + " "):
+        title = title[len(course) + 1:]
     return title
 
 
-def _same(a: Deadline, b: Deadline) -> bool:
-    if a.due != b.due:
-        return False
+def _same_work(a: Deadline, b: Deadline) -> bool:
+    """Same course and same work, whatever the date."""
     if " ".join(a.title.casefold().split()) == " ".join(b.title.casefold().split()):
         return True
     wa, wb = _work(a), _work(b)
-    return bool(a.course) and a.course == b.course and (wa in wb or wb in wa)
+    return bool(wa and wb) and _course(a) == _course(b) and (_contains(wa, wb) or _contains(wb, wa))
+
+
+def _contains(part: str, whole: str) -> bool:
+    """Whole words only: 'hw 2' is in 'hw 2 late', not in 'hw 20' or 'hw 2b'."""
+    return re.search(rf"(?<!\w){re.escape(part)}(?!\w)", whole) is not None
+
+
+def _same(a: Deadline, b: Deadline) -> bool:
+    return a.due == b.due and _same_work(a, b)
 
 
 def merge_deadlines(*sources: tuple[Deadline, ...]) -> tuple[Deadline, ...]:
@@ -68,6 +86,12 @@ def merge_deadlines(*sources: tuple[Deadline, ...]) -> tuple[Deadline, ...]:
     for items in sources:
         kept += [d for d in items if not any(_same(d, k) for k in kept)]
     return tuple(kept)
+
+
+def drop_done(deadlines: tuple[Deadline, ...], done: tuple[Deadline, ...]) -> tuple[Deadline, ...]:
+    """Hide copies of work completed in the university app: same course and work, dates up to 14 days apart (§7.2)."""
+    return tuple(d for d in deadlines if d.source == "hseapp" or not any(
+        abs((d.due - x.due).days) <= DONE_WINDOW_DAYS and _same_work(d, x) for x in done))
 
 
 def build(now: dt.datetime, cfg: Config, ha, grades: tuple = (), grades_problem: str | None = None,
