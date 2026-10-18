@@ -6,7 +6,7 @@ import pytest
 from tablo import builder, config, protocol
 from tablo.ha import FakeHA
 from tablo.model import Deadline, ScreenModel
-from tablo.render import overlays, screen
+from tablo.render import fonts, overlays, pixelfont, pixels, screen
 from tablo.render.canvas import Canvas
 from tablo.render.screen import _due_label
 
@@ -36,6 +36,48 @@ def test_tile_fill_follows_ha_state():
     on = screen.render(builder.build(NOW, CFG, ha)).to_bw()
     tile4 = (300, 430, 100, 50)
     assert _black(off, tile4) < 1000 < _black(on, tile4)
+
+
+@pytest.mark.parametrize("sprites,size", [(pixels.SMALL_SPRITES, pixels.SMALL), (pixels.BIG_SPRITES, pixels.BIG),
+                                          (pixels.ICONS, pixels.ICON)])
+def test_pixel_icons_fit_their_box(sprites, size):
+    for name, rows in sprites.items():
+        assert len(rows) <= size, name
+        assert all(len(r) == size and set(r) <= {"#", "."} for r in rows), name
+
+
+def test_clouds_with_something_under_them_are_one_cloud():
+    for sprites, cloud in ((pixels.SMALL_SPRITES, pixels.SMALL_SPRITES["cloud"]), (pixels.BIG_SPRITES, pixels.BIG_SPRITES["rain1"][:27])):
+        for kind in ("rain1", "rain2", "rain3", "snow", "storm", "fog"):
+            assert sprites[kind][:len(cloud)] == cloud, kind
+
+
+def test_block_icons_have_pixel_versions():
+    assert set(screen.CATEGORY_ICONS.values()) | set(screen.SOURCE_ICONS.values()) <= set(pixels.ICONS)
+
+
+@pytest.mark.parametrize("size,weight", [(15, "medium"), (16, "medium"), (16, "semibold"), (30, "semibold")])
+def test_screen_fonts_have_pixel_versions(size, weight):
+    font = fonts.inter(size, weight)
+    pf = pixelfont.lookup(font)
+    assert pf is not None and (pf.ascent, pf.descent) == font.getmetrics()
+    for ch in map(chr, range(32, 127)):
+        g = pf.glyphs[ch]
+        assert all(len(r) == len(g.rows[0]) and set(r) <= {"#", "."} for r in g.rows), ch
+        assert 0 <= g.top and g.top + len(g.rows) <= pf.ascent + pf.descent, ch
+
+
+def test_pixel_text_keeps_one_baseline_and_falls_back_to_freetype():
+    c, font = Canvas(), fonts.inter(16, "medium")
+    c.text((10, 10), "Physics", font)
+    c.text((110, 10), "Oct 21", font)
+    c.text((210, 10), "Ж", font)  # no pixel glyph: drawn by FreeType
+    bw = c.to_bw()
+    bottoms = [bw.crop((x, 0, x + 90, 60)).point(lambda v: 255 - v).getbbox()[3] for x in (10, 110)]
+    assert bottoms[1] == 10 + 16  # the digits sit on the baseline, ascent 16 below the top
+    assert bottoms[0] > bottoms[1]  # "y" goes below it
+    assert bw.crop((205, 0, 260, 60)).point(lambda v: 255 - v).getbbox() is not None
+    assert c.width("Oct 21", font) == pixelfont.width(pixelfont.lookup(font), font, "Oct 21")
 
 
 def test_due_labels():

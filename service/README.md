@@ -47,7 +47,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 | `tablo/hub.py` | WebSocket с платой, кадры, действия кнопок, полноэкранные экраны |
 | `tablo/app.py` | HTTP API (§6.4), раздача эмулятора |
 | `tablo/model.py`, `tablo/builder.py` | Модель экрана и её сборка из источников |
-| `tablo/render/` | Вёрстка (Pillow), значки погоды, QR и сообщения, упаковка в 1 бит |
+| `tablo/render/` | Вёрстка (Pillow), пиксельные значки (`pixels.py`) и шрифты (`pixelfont.py`), QR и сообщения, упаковка в 1 бит |
 | `tablo/ha.py` | Клиент HA по WebSocket (состояния, `call_service`, `tablo_button`) и фейковый HA в памяти: 5 светильников, VPN-точка, датчик, принтер; Tuya отвечает с задержкой 2 с |
 | `tablo/sources/` | Источники: `grades.py` (Google Таблицы), `hseapp.py` (дедлайны the university app), `ical.py` (пары РУЗ и *Midterm*), `weather.py` (Open-Meteo), `telegram.py`, `mail.py` (новости) |
 | `tablo/todo.py` | Дедлайны как списки дел HA: свои пункты и скрытые (§8.4) |
@@ -56,7 +56,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 | `pages/hseapp.html` | Страница повторного входа в the university app |
 | `tablo/stub.py` | Демо-данные блоков |
 | `emulator/` | Эмулятор платы: та же логика, что будет в прошивке |
-| `assets/` | Шрифты Inter (OFL) и Material Design Icons (Pictogrammers Free License) |
+| `assets/` | Шрифты Inter (OFL) и Material Design Icons (Pictogrammers Free License); `fonts/pixel/` — пиксельные версии Inter для экрана, правятся руками |
+| `tools/pixel_fonts.py` | Делает пиксельные шрифты из Inter (только недостающие, правки не затирает) и листы для просмотра |
 
 ## HTTP API
 

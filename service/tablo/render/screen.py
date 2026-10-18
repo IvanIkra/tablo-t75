@@ -5,7 +5,7 @@ import functools
 
 from .. import protocol
 from ..model import ScreenModel
-from . import fonts, weather_icons
+from . import fonts, pixels
 from .canvas import BLACK, WHITE, Canvas
 
 # Blocks: x, y, w, h (§2).
@@ -104,7 +104,7 @@ def _weather(c: Canvas, m: ScreenModel) -> None:
     if not m.weather:
         c.text((x + w / 2, y + h / 2), "no weather", fonts.inter(15, BODY), anchor="mm")
         return
-    weather_icons.draw(c.draw, m.weather.icon, x + 30, y + h / 2, 44)
+    pixels.weather_big(c.draw, m.weather.icon, x + 30, y + h / 2)
     c.text((x + 58, y + 8), _fmt_temp(m.weather.temp), fonts.inter(30, "semibold"))
     c.text((x + 60, y + 44), f"feels {_fmt_temp(m.weather.feels)}", fonts.inter(15, BODY))
 
@@ -119,7 +119,7 @@ def _forecast(c: Canvas, m: ScreenModel) -> None:
     for i, hour in enumerate(m.forecast[:8]):
         cx = x + col * i + col / 2
         c.text((cx, y + 4), f"{hour.hour:02d}", fonts.inter(15, BODY), anchor="ma")
-        weather_icons.draw(c.draw, hour.icon, cx, y + 34, 22)
+        pixels.weather_small(c.draw, hour.icon, cx, y + 22)
         c.text((cx, y + h - 6), _fmt_temp(hour.temp), fonts.inter(16, "semibold"), anchor="md")
 
 

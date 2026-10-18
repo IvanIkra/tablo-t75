@@ -3,7 +3,7 @@
 from PIL import Image, ImageDraw, ImageFont
 
 from .. import protocol
-from . import fonts
+from . import fonts, pixelfont, pixels
 
 BLACK = 0
 WHITE = 255
@@ -12,8 +12,8 @@ WHITE = 255
 class Canvas:
     """Greyscale canvas that ends up as a pure black/white frame.
 
-    font_mode "aliased" draws text with FreeType's monochrome rasteriser;
-    "threshold" draws antialiased text and cuts it at 50% at the end (§6.3).
+    Sizes with a pixel font (§6.3) are drawn from it. For the rest, font_mode "aliased" draws text
+    with FreeType's monochrome rasteriser; "threshold" draws antialiased text and cuts it at 50% at the end.
     """
 
     def __init__(self, font_mode: str = "aliased"):
@@ -23,9 +23,16 @@ class Canvas:
             self.draw.fontmode = "1"
 
     def text(self, xy, text, font, fill=BLACK, anchor="la"):
-        self.draw.text(xy, text, font=font, fill=fill, anchor=anchor)
+        pf = pixelfont.lookup(font)
+        if pf is not None:
+            pixelfont.draw(self.draw, pf, font, xy, text, fill, anchor)
+        else:
+            self.draw.text(xy, text, font=font, fill=fill, anchor=anchor)
 
     def width(self, text: str, font: ImageFont.FreeTypeFont) -> float:
+        pf = pixelfont.lookup(font)
+        if pf is not None:
+            return pixelfont.width(pf, font, text)
         return self.draw.textlength(text, font=font)
 
     def fit(self, text: str, font, max_width: float) -> str:
@@ -54,6 +61,9 @@ class Canvas:
         return [self.fit(l, font, max_width) for l in lines]
 
     def icon(self, name: str | None, cx: float, cy: float, size: int, fill=BLACK) -> None:
+        """A hand-drawn pixel icon if there is one at this size, else the MDI glyph."""
+        if size == pixels.ICON and pixels.icon(self.draw, name, cx, cy, fill):
+            return
         char = fonts.mdi_char(name)
         if char:
             self.draw.text((cx, cy), char, font=fonts.mdi_font(size), fill=fill, anchor="mm")
