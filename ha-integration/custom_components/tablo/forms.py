@@ -111,3 +111,32 @@ def wifi_from_text(text: str) -> list[dict]:
     if len({w["ssid"] for w in result}) != len(result):
         raise FormError("the same network twice")
     return result
+
+
+# --- Home block rows: "label | template" (§8.3) --------------------------------
+
+HOME_ROWS_MAX = 5  # rows that fit the block
+
+
+def home_rows_to_text(rows: list[dict]) -> str:
+    return "\n".join(f"{r['label']} | {r['template']}" if r.get("label") else f"| {r['template']}" for r in rows)
+
+
+def home_rows_from_text(text: str) -> list[dict]:
+    """The label is what comes before the first "|", unless that part is already template (has "{"):
+    templates use "|" for filters, labels never have braces."""
+    result = []
+    for n, line in enumerate((text or "").splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        label, template = "", line
+        head, sep, tail = line.partition("|")
+        if sep and "{" not in head:
+            label, template = head.strip(), tail.strip()
+        if not template:
+            raise FormError(f"line {n}: expected 'label | template'")
+        result.append({"label": label, "template": template})
+    if len(result) > HOME_ROWS_MAX:
+        raise FormError(f"at most {HOME_ROWS_MAX} rows fit the Home block")
+    return result

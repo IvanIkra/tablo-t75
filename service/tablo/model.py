@@ -61,13 +61,14 @@ class ClassItem:
 
 
 @dataclass(frozen=True)
+class HomeRow:
+    label: str  # empty: the value starts at the left edge
+    value: str  # what HA rendered from the row's template
+
+
+@dataclass(frozen=True)
 class Home:
-    temp: float | None
-    humidity: float | None
-    lights_on: int
-    lights_total: int
-    printer: str | None = None  # "idle", "printing", "off"...; None = no printer configured
-    printer_detail: str = ""  # "42% · 1:20" while printing; the state word then takes the row's left side
+    rows: tuple[HomeRow, ...] = ()  # only rows whose template gave something
 
 
 @dataclass(frozen=True)

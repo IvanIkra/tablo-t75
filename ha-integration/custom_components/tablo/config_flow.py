@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
+from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -28,6 +29,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
     TimeSelector,
 )
+from homeassistant.helpers.template import Template
 
 from . import forms
 from .api import TabloApi, TabloAuthError, TabloError
@@ -150,10 +152,14 @@ class TabloOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(step_id="init", menu_options=["buttons", "wifi", "sources", "home", "screen"])
 
+    def _api(self) -> TabloApi:
+        entry = self.config_entry
+        return TabloApi(async_get_clientsession(self.hass), entry.data[CONF_URL], entry.data[CONF_API_TOKEN])
+
     async def _save(self) -> str | None:
         """Send the config to the service, which checks it; returns its complaint, if any."""
         entry = self.config_entry
-        api = TabloApi(async_get_clientsession(self.hass), entry.data[CONF_URL], entry.data[CONF_API_TOKEN])
+        api = self._api()
         try:
             await api.put_config(self.cfg)
         except TabloError as e:
@@ -352,31 +358,27 @@ class TabloOptionsFlow(OptionsFlow):
     # --- home ------------------------------------------------------------------
 
     async def async_step_home(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        schema = vol.Schema({
-            vol.Optional("temperature"): _entity("sensor"),
-            vol.Optional("humidity"): _entity("sensor"),
-            vol.Optional("lights"): _entity("light", multiple=True),
-            vol.Optional("printer_state"): _entity("sensor"),
-            vol.Optional("printer_progress"): _entity("sensor"),
-            vol.Optional("printer_time_left"): _entity("sensor"),
-        })
+        """Rows of HA templates (§8.3): the service subscribes to them, an empty result hides the row."""
+        schema = vol.Schema({vol.Optional("rows"): MULTILINE})
         if user_input is not None:
             def apply(data):
-                home = self.cfg.setdefault("home", {})
-                home["temperature"] = data.get("temperature", "")
-                home["humidity"] = data.get("humidity", "")
-                home["lights"] = list(data.get("lights", []))
-                home["printer"] = {"state": data.get("printer_state", ""),
-                                   "progress": data.get("printer_progress", ""),
-                                   "time_left": data.get("printer_time_left", "")}
+                rows = forms.home_rows_from_text(data.get("rows", ""))
+                for n, row in enumerate(rows, 1):
+                    try:
+                        Template(row["template"], self.hass).ensure_valid()
+                    except TemplateError as e:
+                        raise forms.FormError(f"row {n}: {e}") from e
+                self.cfg["home"] = {"rows": rows}
             return await self._finish("home", schema, user_input, apply)
-        home = self.cfg.get("home", {})
-        printer = home.get("printer", {})
-        values = {"temperature": home.get("temperature"), "humidity": home.get("humidity"),
-                  "lights": home.get("lights", []), "printer_state": printer.get("state"),
-                  "printer_progress": printer.get("progress"), "printer_time_left": printer.get("time_left")}
+        rows = self.cfg.get("home", {}).get("rows")
+        if rows is None:
+            # Saved before the rows existed: the service has already turned the old fields into rows.
+            try:
+                rows = (await self._api().get_config()).get("home", {}).get("rows", [])
+            except TabloError:
+                rows = []
         return self.async_show_form(step_id="home", data_schema=self.add_suggested_values_to_schema(
-            schema, _clean(values)))
+            schema, _clean({"rows": forms.home_rows_to_text(rows)})))
 
     # --- screen ----------------------------------------------------------------
 

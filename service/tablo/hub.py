@@ -108,12 +108,21 @@ class Hub:
             if h is not None:
                 h.add_listener(lambda entity, old, new: self.schedule_render())
                 h.add_status_listener(self._on_ha_status)
+        self._set_home_templates()
         self._load_demo()
+
+    def _set_home_templates(self) -> None:
+        """HA keeps the Home rows rendered and pushes new results as their entities change (§8.3)."""
+        templates = [row.template for row in self.cfg.home.rows]
+        for h in (self.ha, self.real_ha):
+            if h is not None:
+                h.set_templates(templates)
 
     def set_config(self, cfg: Config) -> None:
         """A config from HA. A source whose links changed polls at once, not on its schedule."""
         old, self.cfg = self.cfg, cfg
         self.subjects.set_manual((s.name, s.title, s.abbr) for s in cfg.subjects)
+        self._set_home_templates()
         changed = {"grades": (old.grades.sheets, old.grades.student) != (cfg.grades.sheets, cfg.grades.student),
                    "ical": old.ical.url != cfg.ical.url,
                    "news": old.news.channels != cfg.news.channels,

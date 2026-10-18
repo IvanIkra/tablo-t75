@@ -11,6 +11,7 @@ dependencies = [
     "openpyxl>=3.1",
     "anthropic>=1.15",
     "icalendar>=6",
+    "jinja2>=3.1",  # the fake HA renders Home templates like HA does
 ]
 
 [build-system]

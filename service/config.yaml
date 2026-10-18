@@ -21,18 +21,15 @@ weather:
   longitude: 37.6173
 
 home:
-  temperature: sensor.room_sensor_temperature
-  humidity: sensor.room_sensor_humidity
-  lights:   # "lights N of M"
-    - light.ceiling_light
-    - light.desk_lamp
-    - light.desk_light
-    - light.desk_backlight
-    - light.closet_light
-  printer:  # Moonraker integration in HA (checked 18.10: printer "printer", host "server")
-    state: sensor.printer_current_print_state
-    progress: sensor.printer_progress
-    time_left: sensor.printer_print_time_left
+  # Rows of the Home block (§8.3): HA renders each template; an empty result hides the row.
+  # An empty label puts the value at the left edge. Printer: Moonraker integration in HA (checked 18.10).
+  rows:
+    - label: ''
+      template: '{{ states(''sensor.room_sensor_temperature'') | round(1) }}° · {{ states(''sensor.room_sensor_humidity'') | round(0) | int }}%'
+    - label: 'lights'
+      template: '{{ [''light.ceiling_light'', ''light.desk_lamp'', ''light.desk_light'', ''light.desk_backlight'', ''light.closet_light''] | select(''is_state'', ''on'') | list | count }} of 5'
+    - label: 'printing'
+      template: '{% if is_state(''sensor.printer_current_print_state'', ''printing'') %}{{ states(''sensor.printer_progress'') | round(0) | int }}% · {% set unit = {''s'': 1 / 60, ''min'': 1, ''h'': 60, ''d'': 1440}[state_attr(''sensor.printer_print_time_left'', ''unit_of_measurement'')] %}{% set m = (states(''sensor.printer_print_time_left'') | float(0) * unit) | round(0) | int %}{{ m // 60 }}:{{ ''%02d'' % (m % 60) }}{% endif %}'
 
 display:
   tz: MSK-3

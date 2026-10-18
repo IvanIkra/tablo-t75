@@ -317,19 +317,18 @@ def _home(c: Canvas, m: ScreenModel) -> None:
     if not h:
         _row(c, HOME, 0, "no Home Assistant")
         return
-    climate = []
-    if h.temp is not None:
-        climate.append(f"{h.temp:.1f}°")
-    if h.humidity is not None:
-        climate.append(f"{h.humidity:.0f}%")
+    if not h.rows:
+        _row(c, HOME, 0, "—")
+        return
+    x, _, w, _ = HOME
     bold = fonts.inter(16, "semibold")
-    _row(c, HOME, 0, " · ".join(climate) or "—")
-    if h.lights_total:
-        _row(c, HOME, 1, "lights", f"{h.lights_on} of {h.lights_total}", right_font=bold)
-    if h.printer and h.printer_detail:
-        _row(c, HOME, 2, h.printer, h.printer_detail, right_font=bold)
-    elif h.printer:
-        _row(c, HOME, 2, "printer", h.printer, right_font=bold)
+    for i, row in enumerate(h.rows[:_rows(HOME)]):
+        if row.label:
+            # The value keeps at least the label's width; a long one is cut with "…".
+            room = w - 2 * PAD - c.width(row.label, fonts.inter(16, BODY)) - 8
+            _row(c, HOME, i, row.label, c.fit(row.value, bold, room), right_font=bold)
+        else:
+            _row(c, HOME, i, row.value)
 
 
 def _tiles(c: Canvas, m: ScreenModel) -> None:

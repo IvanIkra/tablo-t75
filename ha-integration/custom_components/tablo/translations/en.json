@@ -128,16 +128,12 @@
       },
       "home": {
         "title": "Home block",
+        "description": "Up to 5 rows, one per line: `label | template`. Home Assistant renders each template and the panel follows its changes; an empty result hides the row (e.g. printing only while printing). Without a label (`| template`) the value starts at the left edge.",
         "data": {
-          "temperature": "Temperature sensor",
-          "humidity": "Humidity sensor",
-          "lights": "Lights counted in 'lights N of M'",
-          "printer_state": "Printer: print state",
-          "printer_progress": "Printer: progress",
-          "printer_time_left": "Printer: time left"
+          "rows": "Rows"
         },
         "data_description": {
-          "printer_state": "Moonraker sensor. Empty: no printer row."
+          "rows": "Example: `door | {{ 'open' if is_state('binary_sensor.door', 'on') }}`"
         }
       },
       "screen": {

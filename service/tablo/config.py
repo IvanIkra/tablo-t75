@@ -153,23 +153,57 @@ class Weather:
     poll_minutes: int = 15
 
 
-@dataclass
-class Printer:
-    """Sensors of the Moonraker integration in HA (§7.6). Empty state = no printer row."""
+HOME_ROWS_MAX = 5  # rows that fit under the Home block header
 
-    state: str = ""  # current print state: standby, printing, paused, complete, cancelled, error
-    progress: str = ""  # %
-    time_left: str = ""  # unit from the sensor's unit_of_measurement
+
+@dataclass
+class HomeRow:
+    """One row of the Home block (§8.3): HA renders the template, an empty result hides the row."""
+
+    label: str = ""  # left side; empty = the value starts at the left edge
+    template: str = ""
 
 
 @dataclass
 class Home:
-    """§7.6, §8.3: what the Home block reads from HA."""
+    """§7.6, §8.3: the Home block, rows of HA templates."""
 
-    temperature: str = "sensor.room_sensor_temperature"
-    humidity: str = "sensor.room_sensor_humidity"
-    lights: list[str] = field(default_factory=list)  # counted for "lights N of M"
-    printer: Printer = field(default_factory=Printer)
+    rows: list[HomeRow] = field(default_factory=list)
+
+
+LEGACY_HOME_KEYS = {"temperature", "humidity", "lights", "printer"}
+CLIMATE_TEMPLATE = "{{ states('$T') | round(1) }}° · {{ states('$H') | round(0) | int }}%"
+LIGHTS_TEMPLATE = "{{ $LIST | select('is_state', 'on') | list | count }} of $N"
+PRINTER_TEMPLATE = (
+    "{% if is_state('$S', 'printing') %}{{ states('$P') | round(0) | int }}% · "
+    "{% set unit = {'s': 1 / 60, 'min': 1, 'h': 60, 'd': 1440}[state_attr('$L', 'unit_of_measurement')] %}"
+    "{% set m = (states('$L') | float(0) * unit) | round(0) | int %}{{ m // 60 }}:{{ '%02d' % (m % 60) }}{% endif %}"
+)
+
+
+def _fill(template: str, **values: str) -> str:
+    for key, value in values.items():
+        template = template.replace(f"${key}", value)
+    return template
+
+
+def legacy_home_rows(home: dict) -> list[HomeRow]:
+    """The rows the old fixed Home block showed, from its old settings (sensors, lights, Moonraker sensors)."""
+    rows = []
+    t = home.get("temperature", "sensor.room_sensor_temperature")
+    h = home.get("humidity", "sensor.room_sensor_humidity")
+    if t and h:
+        rows.append(HomeRow("", _fill(CLIMATE_TEMPLATE, T=t, H=h)))
+    elif t or h:
+        rows.append(HomeRow("", "{{ states('%s') | round(1) }}%s" % (t or h, "°" if t else "%")))
+    lights = list(home.get("lights") or [])
+    if lights:
+        rows.append(HomeRow("lights", _fill(LIGHTS_TEMPLATE, LIST=repr(lights), N=str(len(lights)))))
+    printer = dict(home.get("printer") or {})
+    if printer.get("state") and printer.get("progress") and printer.get("time_left"):
+        rows.append(HomeRow("printing", _fill(PRINTER_TEMPLATE, S=printer["state"], P=printer["progress"],
+                                              L=printer["time_left"])))
+    return rows
 
 
 @dataclass
@@ -281,10 +315,21 @@ def from_dict(data: dict) -> Config:
     cfg.weather = Weather(**_known(Weather, dict(data.pop("weather", {}) or {}), "weather"))
 
     home = dict(data.pop("home", {}) or {})
-    printer = Printer(**_known(Printer, dict(home.pop("printer", {}) or {}), "home.printer"))
-    cfg.home = Home(printer=printer, **_known(Home, home, "home"))
-    if not all(isinstance(e, str) and "." in e for e in cfg.home.lights):
-        raise ConfigError("home.lights: entity ids like light.lamp")
+    if "rows" in home:
+        # An integration that still has the old fields sends them too; rows win.
+        _known(Home, {k: v for k, v in home.items() if k not in LEGACY_HOME_KEYS}, "home")
+        rows = [HomeRow(**_known(HomeRow, dict(r or {}), "home.rows")) for r in home["rows"] or []]
+    else:
+        _known(Home, {k: v for k, v in home.items() if k not in LEGACY_HOME_KEYS}, "home")
+        rows = legacy_home_rows(home)
+    for r in rows:
+        if not isinstance(r.label, str) or not isinstance(r.template, str) or not r.template.strip():
+            raise ConfigError("home.rows: each row needs a template")
+        if "|" in r.label or "{" in r.label:
+            raise ConfigError(f"home.rows: label {r.label!r} cannot have | or {{")
+    if len(rows) > HOME_ROWS_MAX:
+        raise ConfigError(f"home.rows: at most {HOME_ROWS_MAX} rows fit the block")
+    cfg.home = Home(rows=rows)
 
     cfg.subjects = [SubjectName(**_known(SubjectName, s, "subjects")) for s in data.pop("subjects", []) or []]
     if not all(s.name.strip() and s.title.strip() and s.abbr.strip() for s in cfg.subjects):

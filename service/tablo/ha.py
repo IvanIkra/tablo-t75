@@ -1,16 +1,21 @@
 """Home Assistant access (§7.6, §8.1).
 
 `HomeAssistant` is the real client: one WebSocket, `subscribe_entities` for
-states, `call_service` for buttons, `fire_event` for `tablo_button`. `FakeHA`
-is an in-memory house with the same methods, for the emulator and tests.
-States survive a lost connection: the screen shows the last known ones (§11).
+states, `render_template` for the Home rows (§8.3), `call_service` for buttons,
+`fire_event` for `tablo_button`. `FakeHA` is an in-memory house with the same
+methods, for the emulator and tests. States and template results survive a lost
+connection: the screen shows the last known ones (§11).
 """
 
 import asyncio
+import contextlib
 import logging
+import math
 from collections.abc import Callable
 
 import aiohttp
+from jinja2 import TemplateError, Undefined
+from jinja2.sandbox import ImmutableSandboxedEnvironment
 
 log = logging.getLogger(__name__)
 
@@ -66,6 +71,10 @@ class HomeAssistant:
         self._waiters: dict[str, list[asyncio.Future]] = {}
         self._listeners: list[StateListener] = []
         self._status_listeners: list[StatusListener] = []
+        self.templates: dict[str, str | None] = {}  # template -> last result; None = error or not rendered yet
+        self._wanted: list[str] = []
+        self._template_ids: dict[int, str] = {}  # subscription id -> template, on the current connection
+        self._tasks: set[asyncio.Task] = set()
 
     # --- reading ----------------------------------------------------------------
 
@@ -80,6 +89,48 @@ class HomeAssistant:
 
     def attribute(self, entity: str, name: str):
         return self.attrs.get(entity, {}).get(name)
+
+    def template(self, template: str) -> str | None:
+        return self.templates.get(template)
+
+    def set_templates(self, templates: list[str]) -> None:
+        """Keep these templates rendered by HA: subscribe to new ones, drop the rest."""
+        wanted = list(dict.fromkeys(t for t in templates if t))
+        if wanted == self._wanted:
+            return
+        self._wanted = wanted
+        for t in list(self.templates):
+            if t not in wanted:
+                del self.templates[t]
+        if self.connected and self._ws is not None:
+            with contextlib.suppress(RuntimeError):  # no event loop: subscribed on the next connection
+                task = asyncio.get_running_loop().create_task(self._sync_templates(self._ws))
+                self._tasks.add(task)
+                task.add_done_callback(self._tasks.discard)
+
+    async def _sync_templates(self, ws: aiohttp.ClientWebSocketResponse) -> None:
+        current = {t: sub for sub, t in self._template_ids.items()}
+        for t, sub in current.items():
+            if t not in self._wanted:
+                del self._template_ids[sub]
+                with contextlib.suppress(HAError, asyncio.TimeoutError):
+                    await self._command({"type": "unsubscribe_events", "subscription": sub})
+        for t in self._wanted:
+            if t not in current:
+                await self._subscribe_template(ws, t)
+
+    async def _subscribe_template(self, ws: aiohttp.ClientWebSocketResponse, template: str) -> None:
+        self._next_id += 1
+        self._template_ids[self._next_id] = template
+        await ws.send_json({"id": self._next_id, "type": "render_template", "template": template,
+                            "report_errors": True})
+
+    def _template_result(self, template: str, value: str | None) -> None:
+        old = self.templates.get(template)
+        self.templates[template] = value
+        if old != value:
+            for listener in self._listeners:
+                listener(f"template:{template}", old, value)
 
     # --- actions ----------------------------------------------------------------
 
@@ -174,6 +225,9 @@ class HomeAssistant:
         self._next_id += 1
         sub_id = self._next_id
         await ws.send_json({"id": sub_id, "type": "subscribe_entities"})
+        self._template_ids = {}
+        for template in self._wanted:
+            await self._subscribe_template(ws, template)
         self._ws = ws
         self.error = None
         self._set_connected(True)
@@ -185,11 +239,30 @@ class HomeAssistant:
                     raise ConnectionError(str(ws.exception()))
                 continue
             item = msg.json()
+            template = self._template_ids.get(item.get("id"))
             if item.get("type") == "event" and item.get("id") == sub_id:
                 self._apply(item["event"], full=first)
                 first = False
+            elif template is not None:
+                self._template_message(template, item)
             elif item.get("type") == "result":
                 self._result(item, item.get("id") == sub_id)
+
+    def _template_message(self, template: str, item: dict) -> None:
+        """A `render_template` answer: the rendered text, or an error (shown as no row)."""
+        if item.get("type") == "result":
+            if not item.get("success"):
+                log.warning("Home template %r refused: %s", template, (item.get("error") or {}).get("message"))
+                self._template_result(template, None)
+            return
+        event = item.get("event") or {}
+        if "error" in event:
+            if event.get("level") == "ERROR":
+                log.warning("Home template %r: %s", template, event["error"])
+                self._template_result(template, None)
+            return
+        result = event.get("result")
+        self._template_result(template, None if result is None else str(result))
 
     def _result(self, item: dict, subscription: bool) -> None:
         if subscription:
@@ -272,6 +345,7 @@ class FakeHA:
         self.attrs: dict[str, dict] = {"sensor.printer_print_time_left": {"unit_of_measurement": "h"}}
         self._listeners: list[StateListener] = []
         self.events: list[tuple[str, dict]] = []
+        self._jinja = _fake_jinja(self)
 
     def add_listener(self, listener: StateListener) -> None:
         self._listeners.append(listener)
@@ -284,6 +358,17 @@ class FakeHA:
 
     def attribute(self, entity: str, name: str):
         return self.attrs.get(entity, {}).get(name)
+
+    def set_templates(self, templates: list[str]) -> None:
+        pass  # rendered on demand from the current states
+
+    def template(self, template: str) -> str | None:
+        """Like HA would render it, for the functions Home rows use; None on an error."""
+        try:
+            return self._jinja.from_string(template).render()
+        except (TemplateError, ValueError, TypeError, KeyError, ZeroDivisionError) as e:
+            log.info("fake HA: template %r: %s", template, e)
+            return None
 
     async def toggle(self, entity: str) -> None:
         if entity not in self.states:
@@ -316,3 +401,37 @@ class FakeHA:
         self.states[entity] = new
         for listener in self._listeners:
             listener(entity, old, new)
+
+
+def _fake_jinja(ha: FakeHA) -> ImmutableSandboxedEnvironment:
+    """The part of HA's template language the Home rows need: states, attributes and number filters."""
+    env = ImmutableSandboxedEnvironment()
+
+    def number(value, default=None, cast=float):
+        try:
+            result = float(value)
+            if math.isnan(result):
+                raise ValueError
+            return cast(result)
+        except (TypeError, ValueError):
+            if default is not None:
+                return default
+            raise ValueError(f"{value!r} is not a number") from None
+
+    def is_state(entity, state):
+        return ha.states.get(entity) in (state if isinstance(state, (list, tuple)) else [state])
+
+    env.globals.update(
+        states=lambda entity: ha.states.get(entity, "unknown"),
+        is_state=is_state,
+        state_attr=lambda entity, name: ha.attrs.get(entity, {}).get(name),
+        is_number=lambda value: number(value, default=False) is not False,
+    )
+    env.filters.update(
+        float=lambda value, default=None: number(value, default),
+        int=lambda value, default=None: number(value, default, cast=int),
+        round=lambda value, precision=0, *args, default=None: round(number(value, default), precision),
+    )
+    env.tests["is_state"] = is_state
+    env.undefined = Undefined
+    return env

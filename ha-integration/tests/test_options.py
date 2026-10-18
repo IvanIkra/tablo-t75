@@ -100,10 +100,18 @@ async def test_wifi_home_screen(hass: HomeAssistant, entry, hub):
     assert [(n.ssid, n.security) for n in hub.cfg.wifi_networks] == [("Home", "WPA"), ("Guest", "nopass")]
 
     result = await _open(hass, entry, "home")
+    rows_field = next(k for k in result["data_schema"].schema if k == "rows")
+    assert "lights | {{" in rows_field.description["suggested_value"]  # the service's rows, from config.yaml
     result = await hass.config_entries.options.async_configure(result["flow_id"], {
-        "temperature": "sensor.t", "lights": ["light.a", "light.b"]})
+        "rows": "| {{ states('sensor.t') }}°\ndoor | {{ 'open' if is_state('binary_sensor.door', 'on') }}"})
     assert result["type"] == "create_entry"
-    assert hub.cfg.home.lights == ["light.a", "light.b"] and hub.cfg.home.printer.state == ""
+    assert [(r.label, r.template) for r in hub.cfg.home.rows] == [
+        ("", "{{ states('sensor.t') }}°"), ("door", "{{ 'open' if is_state('binary_sensor.door', 'on') }}")]
+
+    result = await _open(hass, entry, "home")
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"rows": "door | {{ states("})
+    assert result["errors"] == {"base": "rejected"}
+    assert "row 1" in result["description_placeholders"]["error"]
 
     result = await _open(hass, entry, "screen")
     result = await hass.config_entries.options.async_configure(result["flow_id"], {

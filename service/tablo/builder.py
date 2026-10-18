@@ -8,8 +8,8 @@ import datetime as dt
 import re
 
 from . import stub
-from .config import Config, Printer
-from .model import Deadline, Home, ScreenModel, Tile
+from .config import Config
+from .model import Deadline, Home, HomeRow, ScreenModel, Tile
 
 REFRESH_TILE = Tile(icon="mdi:refresh", on=False)
 
@@ -29,52 +29,19 @@ def tiles(cfg: Config, ha) -> tuple[Tile, ...]:
     return tuple(result)
 
 
-def _number(ha, entity: str) -> float | None:
-    try:
-        return float(ha.state(entity)) if entity else None
-    except (TypeError, ValueError):
-        return None
-
-
-PRINTER_WORDS = {"standby": "idle", "cancelled": "idle", "complete": "done", "error": "error"}
-MINUTES = {"s": 1 / 60, "min": 1, "h": 60, "d": 1440}
-
-
-def printer(ha, p: Printer) -> tuple[str | None, str]:
-    """State word and detail from the Moonraker sensors (§7.6): ("printing", "42% · 1:20"), ("idle", "")."""
-    if not p.state:
-        return None, ""
-    state = ha.state(p.state)
-    if state in (None, "unavailable", "unknown"):
-        return "off", ""  # Klipper host or printer powered off
-    if state not in ("printing", "paused"):
-        return PRINTER_WORDS.get(state, state), ""
-    parts = []
-    progress = _number(ha, p.progress)
-    if progress is not None:
-        parts.append(f"{progress:.0f}%")
-    left = _number(ha, p.time_left)
-    unit = MINUTES.get(ha.attribute(p.time_left, "unit_of_measurement")) if p.time_left else None
-    if state == "printing" and left is not None and unit:
-        minutes = round(left * unit)
-        parts.append(f"{minutes // 60}:{minutes % 60:02d}")
-    return state, " · ".join(parts)
-
-
 def home(ha, cfg: Config) -> Home | None:
-    """None until HA has sent its states once; after that the last known ones, also offline (§11)."""
+    """None until HA has sent its states once; after that the last known results, also offline (§11).
+
+    A row whose template gave nothing (not rendered yet, empty, an error) is left out (§8.3).
+    """
     if ha is None or not ha.ready:
         return None
-    h = cfg.home
-    state, detail = printer(ha, h.printer)
-    return Home(
-        temp=_number(ha, h.temperature),
-        humidity=_number(ha, h.humidity),
-        lights_on=sum(ha.state(e) == "on" for e in h.lights),
-        lights_total=len(h.lights),
-        printer=state,
-        printer_detail=detail,
-    )
+    rows = []
+    for row in cfg.home.rows:
+        value = (ha.template(row.template) or "").strip()
+        if value:
+            rows.append(HomeRow(row.label, " ".join(value.split())))
+    return Home(rows=tuple(rows))
 
 
 DONE_WINDOW_DAYS = 14  # an extension moves the date in an email, while the university app keeps the old one
