@@ -29,7 +29,7 @@ home:
     - light.desk_light
     - light.desk_backlight
     - light.closet_light
-  printer:  # Moonraker integration; check the names once it is installed in HA
+  printer:  # Moonraker integration in HA (checked 18.10: printer "printer", host "server")
     state: sensor.printer_current_print_state
     progress: sensor.printer_progress
     time_left: sensor.printer_print_time_left
