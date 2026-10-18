@@ -30,6 +30,12 @@ create table if not exists grade_events (
     bonus real,
     seen_at text not null
 );
+create table if not exists subjects (
+    name text primary key,      -- course name as a source gives it, Russian or English
+    title text not null,        -- short English name for the Classes block
+    abbr text not null,         -- course prefix for deadline labels: Calc, DM
+    manual integer not null default 0  -- set by hand (HA): Haiku never overwrites it
+);
 """
 
 

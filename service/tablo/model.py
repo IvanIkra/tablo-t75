@@ -28,6 +28,7 @@ class Deadline:
     due: dt.date
     category: str  # "study" | "personal"
     source: str  # "hseapp" | "mail" | "tg" | "ical" | "ha"
+    course: str | None = None  # abbreviation from the subject dictionary, for merging duplicates
 
 
 @dataclass(frozen=True)
@@ -78,5 +79,6 @@ class ScreenModel:
     news: tuple[NewsItem, ...] = ()
     classes: tuple[ClassItem, ...] = ()
     classes_label: str = ""
+    classes_problem: str | None = None  # shown instead of "no classes" when the calendar is failing
     home: Home | None = None
     tiles: tuple[Tile, ...] = field(default_factory=tuple)

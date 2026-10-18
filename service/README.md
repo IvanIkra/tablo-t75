@@ -34,6 +34,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
   ```
 
   Дальше сервис сам обновляет токен. Если на экране *HSE login needed* — войти заново на <http://localhost:8765/hseapp>.
+- **Пары** (этап 4): ссылка РУЗ в `.env` как `TABLO_ICAL_URL`. Английские названия предметов — словарь в таблице `subjects`, новые заполняет Haiku.
 
 ## Что где
 
@@ -46,7 +47,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 | `tablo/model.py`, `tablo/builder.py` | Модель экрана и её сборка из источников |
 | `tablo/render/` | Вёрстка (Pillow), значки погоды, QR и сообщения, упаковка в 1 бит |
 | `tablo/ha.py` | Фейковый HA: 5 светильников, VPN-точка, датчик; Tuya отвечает с задержкой 2 с |
-| `tablo/sources/` | Источники: `grades.py` (Google Таблицы), `hseapp.py` (дедлайны the university app) |
+| `tablo/sources/` | Источники: `grades.py` (Google Таблицы), `hseapp.py` (дедлайны the university app), `ical.py` (пары РУЗ и *Midterm*) |
+| `tablo/subjects.py` | Словарь предметов: короткое английское название и сокращение, общий для пар и дедлайнов |
 | `tablo/llm.py`, `tablo/store.py` | Haiku со структурированным ответом; SQLite |
 | `pages/hseapp.html` | Страница повторного входа в the university app |
 | `tablo/stub.py` | Демо-данные блоков |

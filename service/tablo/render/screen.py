@@ -213,14 +213,31 @@ def _news(c: Canvas, m: ScreenModel) -> None:
         cy += len(lines) * line_h + 10
 
 
+CLASS_TEXT_X = PAD + 52  # after the start time
+ROOM_SAMPLES = ("online", "G406", "D208")
+
+
+@functools.cache
+def class_subject_width() -> float:
+    """Room for a course title next to a typical room: the budget of the subject dictionary (§7.3)."""
+    c = Canvas()
+    f = fonts.inter(16, BODY)
+    right = max(c.width(s, f) for s in ROOM_SAMPLES)
+    return CLASSES[2] - CLASS_TEXT_X - PAD - right - 8
+
+
+def class_subject_fits(title: str) -> bool:
+    return Canvas().width(title, fonts.inter(16, BODY)) <= class_subject_width()
+
+
 def _classes(c: Canvas, m: ScreenModel) -> None:
     _block_header(c, CLASSES, "Classes", m.classes_label)
     x = CLASSES[0]
     if not m.classes:
-        _row(c, CLASSES, 0, "no classes")
+        _row(c, CLASSES, 0, m.classes_problem or "no classes")
     for i, cl in enumerate(m.classes[: _rows(CLASSES)]):
         room = cl.mark if cl.mark else cl.room
-        _row(c, CLASSES, i, cl.subject, room, left_x=x + PAD + 52)
+        _row(c, CLASSES, i, cl.subject, room, left_x=x + CLASS_TEXT_X)
         c.text((x + PAD, _row_y(CLASSES, i)), cl.start.strftime("%H:%M"), fonts.inter(16, "semibold"))
 
 

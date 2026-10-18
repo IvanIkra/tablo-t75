@@ -106,6 +106,14 @@ class HseApp:
     poll_minutes: int = 15
 
 
+@dataclass
+class Ical:
+    """§7.3: the RUZ timetable. The link is a secret: TABLO_ICAL_URL in .env (later from HA)."""
+
+    url: str = ""
+    poll_minutes: int = 60
+
+
 DEMO_KEYS = ("weather", "deadlines", "grades", "news", "classes", "ha")
 
 
@@ -125,6 +133,7 @@ class Config:
     demo: dict[str, bool] = field(default_factory=lambda: dict.fromkeys(DEMO_KEYS, True))
     grades: Grades = field(default_factory=Grades)
     hseapp: HseApp = field(default_factory=HseApp)
+    ical: Ical = field(default_factory=Ical)
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -174,6 +183,7 @@ def from_dict(data: dict) -> Config:
         raise ConfigError("grades.student is required to find your row in the sheets")
 
     cfg.hseapp = HseApp(**_known(HseApp, dict(data.pop("hseapp", {}) or {}), "hseapp"))
+    cfg.ical = Ical(**_known(Ical, dict(data.pop("ical", {}) or {}), "ical"))
 
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []
@@ -211,6 +221,7 @@ def parse_demo(data: dict) -> dict[str, bool]:
 def _apply_env(cfg: Config) -> None:
     cfg.device_token = os.environ.get("TABLO_DEVICE_TOKEN", cfg.device_token)
     cfg.api_token = os.environ.get("TABLO_API_TOKEN", cfg.api_token)
+    cfg.ical.url = os.environ.get("TABLO_ICAL_URL", cfg.ical.url)
     if "TABLO_PORT" in os.environ:
         cfg.port = int(os.environ["TABLO_PORT"])
 
