@@ -5,6 +5,7 @@ import contextlib
 import io
 import logging
 from pathlib import Path
+from urllib.parse import urlencode
 
 import yaml
 from aiohttp import web
@@ -132,10 +133,13 @@ async def hseapp_page(request: web.Request) -> web.FileResponse:
 async def hseapp_login_url(request: web.Request) -> web.Response:
     _require_api_token(request)
     hub = _hub(request)
-    return web.json_response({"url": hub.hseapp.auth.login_url(), "logged_in": hub.hseapp.auth.logged_in})
+    # HSE's client accepts any return address: the browser comes straight back here.
+    callback = f"{request.scheme}://{request.host}/hseapp/callback"
+    return web.json_response({"url": hub.hseapp.auth.login_url(callback), "logged_in": hub.hseapp.auth.logged_in})
 
 
 async def hseapp_login(request: web.Request) -> web.Response:
+    """The return address pasted by hand, when the browser could not reach the service."""
     _require_api_token(request)
     data = await _json(request)
     try:
@@ -143,6 +147,15 @@ async def hseapp_login(request: web.Request) -> web.Response:
     except ValueError as e:
         raise web.HTTPBadRequest(text=str(e))
     return web.json_response({"ok": True})
+
+
+async def hseapp_callback(request: web.Request) -> web.Response:
+    """No api token here: only a browser that started the login knows its state (PKCE)."""
+    try:
+        await _hub(request).hseapp.login(str(request.url))
+    except ValueError as e:
+        raise web.HTTPFound("/hseapp?" + urlencode({"error": str(e)}))
+    raise web.HTTPFound("/hseapp?login=ok")
 
 
 async def emulator_index(request: web.Request) -> web.FileResponse:
@@ -171,6 +184,7 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     app.router.add_get("/hseapp", hseapp_page)
     app.router.add_get("/api/hseapp/login", hseapp_login_url)
     app.router.add_post("/api/hseapp/login", hseapp_login)
+    app.router.add_get("/hseapp/callback", hseapp_callback)
     app.router.add_get("/", root)
     app.router.add_get("/emu", emulator_index)
     app.router.add_static("/emu/static", EMULATOR_DIR)
