@@ -11,8 +11,8 @@ services:
       # One LAN address only: another service on the host may already hold 127.0.0.1:8765.
       - "192.168.1.50:8765:8765"
     dns:
+      - 192.168.1.50
       - 192.168.1.1
-      - 1.1.1.1
     env_file: .env
     environment:
       TABLO_HA_URL: http://192.168.1.50:8123
