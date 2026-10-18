@@ -4,7 +4,7 @@
 "use strict";
 
 const W = 800, H = 480, ROW = W / 8, PAYLOAD = ROW * H, HEADER = 20;
-const FW = "emu-0.2";
+const FW = "emu-0.3";
 const params = new URLSearchParams(location.search);
 const TOKEN = params.get("token") || "dev-device-token";
 const DEVICE = params.get("device") || "tablo-emu";
@@ -247,15 +247,10 @@ function drawFirmwareZones(buf) {
     }, true);
     return;
   }
+  // Online: icons only; the last sync time is on the diagnostics screen (long press on 8).
   drawZone(buf, zs, (c) => {
     c.textAlign = "right";
     let x = sx + sw - 4;
-    if (st.health.synced_at) {
-      c.font = "500 15px InterEmu";
-      const t = `synced ${st.health.synced_at}`;
-      c.fillText(t, x, sy + 17);
-      x -= c.measureText(t).width + 8;
-    }
     c.font = "17px MDIEmu";
     for (const code of [st.connected && st.health.ha ? MDI.home : MDI.homeOff,
                         st.connected ? MDI.cloud : MDI.cloudOff, MDI.wifi]) {
@@ -278,6 +273,7 @@ function drawDiag(buf) {
     ["Service", st.connected ? "connected" : `offline since ${new Date(st.offlineSince).toLocaleTimeString()}`],
     ["Home Assistant", st.connected ? (st.health.ha ? "ok" : "down") : "unknown"],
     ["Last frame", st.lastFrameAt ? `${new Date(st.lastFrameAt).toLocaleTimeString()} · id ${st.baseId}` : "none"],
+    ["Last sync", st.health.synced_at || "never"],
     ["Partial updates", String(st.partials)],
   ];
   drawZone(buf, [0, 0, W, H], (c) => {
