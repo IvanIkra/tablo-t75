@@ -235,8 +235,13 @@ async def hseapp_callback(request: web.Request) -> web.Response:
     raise web.HTTPFound("/hseapp?login=ok")
 
 
-async def emulator_index(request: web.Request) -> web.FileResponse:
-    return web.FileResponse(EMULATOR_DIR / "index.html", headers={"Cache-Control": "no-store"})
+async def emulator_index(request: web.Request) -> web.Response:
+    """The page links emu.js and emu.css with their mtime, so a browser never runs a stale copy after a deploy."""
+    html = (EMULATOR_DIR / "index.html").read_text(encoding="utf-8")
+    for name in ("emu.js", "emu.css"):
+        version = int((EMULATOR_DIR / name).stat().st_mtime)
+        html = html.replace(f"/emu/static/{name}\"", f"/emu/static/{name}?v={version}\"")
+    return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
 
 
 async def root(request: web.Request) -> web.Response:

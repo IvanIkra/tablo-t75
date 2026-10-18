@@ -137,4 +137,7 @@ async def test_emulator_files_and_fonts_are_revalidated(client):
     for path in ("/emu/static/emu.js", "/fonts/pixel/clock-64.txt", "/mdi/materialdesignicons-webfont.ttf"):
         resp = await client.get(path)
         assert resp.status == 200 and resp.headers["Cache-Control"] == "no-cache", path
-    assert (await client.get("/emu")).headers["Cache-Control"] == "no-store"
+    page = await client.get("/emu")
+    assert page.headers["Cache-Control"] == "no-store"
+    html = await page.text()
+    assert "/emu/static/emu.js?v=" in html and "/emu/static/emu.css?v=" in html

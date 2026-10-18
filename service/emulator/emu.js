@@ -4,7 +4,7 @@
 "use strict";
 
 const W = 800, H = 480, ROW = W / 8, PAYLOAD = ROW * H, HEADER = 20;
-const FW = "emu-0.1";
+const FW = "emu-0.2";
 const params = new URLSearchParams(location.search);
 const TOKEN = params.get("token") || "dev-device-token";
 const DEVICE = params.get("device") || "tablo-emu";
