@@ -294,7 +294,10 @@ class FakeHA:
 
     async def run_script(self, entity: str) -> None:
         await asyncio.sleep(self.fast_delay)
-        if entity in ("script.all_lights_off", "script.leaving_home"):
+        if entity == "script.all_lights_on":
+            for light in LIGHTS:
+                self._set(light, "on")
+        elif entity in ("script.all_lights_off", "script.leaving_home"):
             for light in LIGHTS:
                 self._set(light, "off")
             if entity == "script.leaving_home":

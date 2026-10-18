@@ -15,6 +15,19 @@ all_lights_off:
           - light.desk_backlight
           - light.closet_light
 
+all_lights_on:
+  alias: Tablo · All lights on
+  icon: mdi:lightbulb-group
+  sequence:
+    - action: light.turn_on
+      target:
+        entity_id:
+          - light.ceiling_light
+          - light.desk_lamp
+          - light.desk_light
+          - light.desk_backlight
+          - light.closet_light
+
 leaving_home:
   alias: Tablo · Leaving home
   icon: mdi:exit-run

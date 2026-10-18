@@ -40,7 +40,7 @@ def test_ical_link_from_ha_wins_over_env(monkeypatch):
 async def test_config_needs_token(client):
     assert (await client.get("/api/config")).status == 401
     resp = await client.get("/api/config", headers=AUTH)
-    assert (await resp.json())["buttons"][0]["short"]["entity"] == "script.all_lights_off"
+    assert (await resp.json())["buttons"][0]["short"]["entity"] == "script.all_lights_on"
 
 
 async def test_subjects_from_ha_are_manual(client):

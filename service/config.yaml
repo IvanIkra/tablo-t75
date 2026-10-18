@@ -64,8 +64,8 @@ buttons:
   - id: 1
     icon: mdi:power
     tile: none
-    short: {action: script, entity: script.all_lights_off}
-    long: {action: script, entity: script.leaving_home}
+    short: {action: script, entity: script.all_lights_on}
+    long: {action: script, entity: script.all_lights_off}
   - id: 2
     icon: mdi:ceiling-light
     short: {action: toggle, entity: light.ceiling_light}

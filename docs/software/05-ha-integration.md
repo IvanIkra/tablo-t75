@@ -32,7 +32,7 @@
 
 | # | Значок | Короткое | Долгое |
 |---|---|---|---|
-| 1 | `mdi:power` | Скрипт «выключить весь свет» (создать в HA) | «Ухожу»: свет и VPN-точка |
+| 1 | `mdi:power` | Скрипт «включить весь свет» | Скрипт «выключить весь свет» |
 | 2 | `mdi:ceiling-light` | `light.ceiling_light` | Соло: только этот свет |
 | 3 | `mdi:lamp` | `light.desk_lamp` | Яркость по кругу 100 → 40 → 10% |
 | 4 | `mdi:desk` | `light.desk_light` | Соло |
@@ -41,7 +41,7 @@
 | 7 | `mdi:wifi` | `switch.vpn_ap` | Wi-Fi QR: основная сеть + VPN, 20 с |
 | 8 | `mdi:refresh` | *прошито*: полное обновление | *прошито*: диагностика 30 с |
 
-«Соло», «яркость по кругу» и таймер — это скрипты HA. Шаблоны — в [`ha-integration/scripts/tablo.yaml`](../../ha-integration/scripts/tablo.yaml): `all_lights_off`, `leaving_home`, `solo_ceiling` и `solo_desk` (через общий `solo_light`), `lamp_brightness_cycle` (100 → 40 → 10%), `backlight_color_cycle` (тёплый → красный → зелёный → синий → фиолетовый), `closet_5min`.
+«Соло», «яркость по кругу» и таймер — это скрипты HA. Шаблоны — в [`ha-integration/scripts/tablo.yaml`](../../ha-integration/scripts/tablo.yaml): `all_lights_on`, `all_lights_off`, `leaving_home` (свет и VPN-точка, сейчас ни на одной кнопке), `solo_ceiling` и `solo_desk` (через общий `solo_light`), `lamp_brightness_cycle` (100 → 40 → 10%), `backlight_color_cycle` (тёплый → красный → зелёный → синий → фиолетовый), `closet_5min`.
 
 ### 8.3 Остальные настройки
 
