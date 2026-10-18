@@ -55,6 +55,19 @@ create table if not exists news_items (
     importance integer not null,
     replaced_by text            -- a newer item on the same topic took its place
 );
+create table if not exists own_deadlines (
+    id integer primary key,     -- added to a to-do list in HA (§8.4)
+    title text not null,
+    due text not null,
+    category text not null      -- "study" | "personal": the list it was added to
+);
+create table if not exists hidden_deadlines (
+    uid text primary key,       -- deleted or marked done in HA: never shown again
+    source text not null,
+    course text,
+    title text not null,
+    due text not null
+);
 create table if not exists news_deadlines (
     id integer primary key,
     item text not null,         -- news item it came from

@@ -1,0 +1,54 @@
+show_qr:
+  fields:
+    networks:
+      example: ["Home"]
+      selector:
+        text:
+          multiple: true
+    duration:
+      example: 20
+      selector:
+        number:
+          min: 5
+          max: 600
+          unit_of_measurement: s
+
+show_message:
+  fields:
+    title:
+      required: true
+      example: Dinner is ready
+      selector:
+        text:
+    text:
+      example: Come to the kitchen
+      selector:
+        text:
+          multiline: true
+    icon:
+      example: mdi:silverware-fork-knife
+      selector:
+        icon:
+    duration:
+      example: 30
+      selector:
+        number:
+          min: 5
+          max: 600
+          unit_of_measurement: s
+
+full_refresh:
+
+refresh_data:
+  fields:
+    sources:
+      selector:
+        select:
+          multiple: true
+          translation_key: source
+          options:
+            - grades
+            - hseapp
+            - ical
+            - news
+            - weather

@@ -36,14 +36,19 @@
 
 ### 6.4 HTTP API
 
-Для интеграции HA и отладки, на том же порту 8765. Запросы, меняющие состояние, требуют `Authorization: Bearer <api_token>`.
+Для интеграции HA и отладки, на том же порту 8765. Запросы, меняющие состояние, а также `GET /api/config` и `GET /api/deadlines`, требуют `Authorization: Bearer <api_token>`.
 
 | Метод и путь | Что делает |
 |---|---|
+| `GET /api/config` | Текущий конфиг без секретов: интеграция берёт его при подключении (§8.1) |
 | `PUT /api/config` | Интеграция присылает полный конфиг (§8) |
+| `GET /api/deadlines` | Дедлайны для списков дел: `uid`, `title`, `due`, `category`, `source`, `overdue` (§8.4) |
+| `POST /api/deadlines` | Свой дедлайн: `{title, due, category}` |
+| `PATCH /api/deadlines/{uid}` | `{done: true}` скрывает; `{title, due}` меняет (дедлайн из источника скрывается, остаётся своя копия) |
+| `DELETE /api/deadlines/{uid}` | Свой удаляется, из источника скрывается |
 | `POST /api/overlay/qr` | `{networks: [...], duration_s}` |
 | `POST /api/overlay/message` | `{title, text, icon, duration_s}` |
-| `POST /api/refresh` | `{full: bool, refetch: bool}` |
+| `POST /api/refresh` | `{full: bool, refetch: bool, sources: [...]}`: `refetch` опрашивает источники сейчас (`grades`, `hseapp`, `ical`, `news`, `weather`; без `sources` — все) |
 | `GET /api/status` | Состояние платы, источников, HA |
 | `GET /frame.png` | Текущий кадр картинкой |
 | `GET /emu` | Эмулятор (§9) |

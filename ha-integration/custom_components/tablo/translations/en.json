@@ -1,0 +1,290 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to the Tablo service",
+        "description": "The service runs next to Home Assistant and draws the panel. Its settings are imported from it.",
+        "data": {
+          "url": "Service address",
+          "api_token": "API token"
+        },
+        "data_description": {
+          "url": "For example http://192.168.1.50:8765",
+          "api_token": "TABLO_API_TOKEN from the service's .env"
+        }
+      },
+      "reauth_confirm": {
+        "title": "New API token",
+        "description": "The service no longer accepts the token. Enter TABLO_API_TOKEN from its .env.",
+        "data": {
+          "api_token": "API token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "The service does not answer at this address.",
+      "invalid_auth": "The service refused the API token."
+    },
+    "abort": {
+      "already_configured": "This service is already connected.",
+      "reauth_successful": "The token is updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tablo settings",
+        "menu_options": {
+          "buttons": "Buttons 1–7",
+          "wifi": "Wi-Fi networks for the QR",
+          "sources": "Sources",
+          "home": "Home block",
+          "screen": "Screen"
+        }
+      },
+      "buttons": {
+        "title": "Buttons",
+        "description": "Button 8 is fixed: full refresh and diagnostics.",
+        "data": {
+          "button": "Button"
+        }
+      },
+      "button": {
+        "title": "Button {button}",
+        "data": {
+          "icon": "Icon",
+          "tile": "Tile fill",
+          "tile_entity": "Entity that fills the tile"
+        },
+        "data_description": {
+          "icon": "Empty: the icon of the entity.",
+          "tile_entity": "Only for 'State of another entity'."
+        },
+        "sections": {
+          "short": {
+            "name": "Short press",
+            "data": {
+              "action": "Action",
+              "entity": "Entity",
+              "networks": "Wi-Fi networks (empty: all)",
+              "duration_s": "How long it stays on screen",
+              "title": "Message title",
+              "text": "Message text"
+            },
+            "data_description": {
+              "entity": "Toggle: a light or switch. Run: a script, scene, automation or button.",
+              "networks": "For 'Show Wi-Fi QR'.",
+              "duration_s": "For a QR or a message. Empty: the default from Screen."
+            }
+          },
+          "long": {
+            "name": "Long press",
+            "data": {
+              "action": "Action",
+              "entity": "Entity",
+              "networks": "Wi-Fi networks (empty: all)",
+              "duration_s": "How long it stays on screen",
+              "title": "Message title",
+              "text": "Message text"
+            },
+            "data_description": {
+              "entity": "Toggle: a light or switch. Run: a script, scene, automation or button.",
+              "networks": "For 'Show Wi-Fi QR'.",
+              "duration_s": "For a QR or a message. Empty: the default from Screen."
+            }
+          }
+        }
+      },
+      "wifi": {
+        "title": "Wi-Fi networks",
+        "description": "One network per line: `SSID | password | WPA | hidden`. Security is WPA, WEP or nopass; the last field only for a hidden network.",
+        "data": {
+          "networks": "Networks"
+        }
+      },
+      "sources": {
+        "title": "Sources",
+        "data": {
+          "ical_url": "RUZ calendar link (iCal)",
+          "hseapp": "Deadlines from the university app",
+          "student": "Your name as in the grade sheets",
+          "sheets": "Grade sheets",
+          "window_days": "Grades count as new for",
+          "channels": "Telegram channels",
+          "ttl_hours": "News lifetime",
+          "mail": "University mail (IMAP)",
+          "subjects": "Subject names",
+          "latitude": "Weather: latitude",
+          "longitude": "Weather: longitude"
+        },
+        "data_description": {
+          "hseapp": "Log in on the service page /hseapp.",
+          "student": "Surname and first name.",
+          "sheets": "One per line: `link | label`. The label is the short course name on screen; empty: from the sheet title.",
+          "channels": "One per line: `@channel`, or `@channel study` for study channels (polled more often, rank higher).",
+          "mail": "The box and the app password are in the service's .env.",
+          "subjects": "Fixes for the names Haiku gives, one per line: `name as in the source | English title | Abbr`. Other subjects are named by Haiku."
+        }
+      },
+      "home": {
+        "title": "Home block",
+        "data": {
+          "temperature": "Temperature sensor",
+          "humidity": "Humidity sensor",
+          "lights": "Lights counted in 'lights N of M'",
+          "printer_state": "Printer: print state",
+          "printer_progress": "Printer: progress",
+          "printer_time_left": "Printer: time left"
+        },
+        "data_description": {
+          "printer_state": "Moonraker sensor. Empty: no printer row."
+        }
+      },
+      "screen": {
+        "title": "Screen",
+        "data": {
+          "semester_start": "Semester start",
+          "full_refresh_at": "Nightly full refresh",
+          "font_mode": "Font rendering",
+          "long_press_ms": "Long press after",
+          "qr_duration_s": "Wi-Fi QR stays",
+          "message_duration_s": "A message stays"
+        },
+        "data_description": {
+          "semester_start": "Week numbers count from it."
+        }
+      }
+    },
+    "error": {
+      "rejected": "Not saved: {error}"
+    }
+  },
+  "selector": {
+    "action": {
+      "options": {
+        "toggle": "Toggle an entity",
+        "script": "Run a script or scene",
+        "qr": "Show Wi-Fi QR",
+        "message": "Show a message",
+        "event": "Event only",
+        "none": "Nothing"
+      }
+    },
+    "tile": {
+      "options": {
+        "auto": "State of the short-press entity",
+        "entity": "State of another entity",
+        "never": "Never"
+      }
+    },
+    "font_mode": {
+      "options": {
+        "aliased": "Sharp (no smoothing)",
+        "threshold": "Smoothed, then cut"
+      }
+    },
+    "source": {
+      "options": {
+        "grades": "Grades",
+        "hseapp": "the university app",
+        "ical": "Timetable",
+        "news": "News (Telegram and mail)",
+        "weather": "Weather"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "connected": {
+        "name": "Connected"
+      }
+    },
+    "sensor": {
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "last_contact": {
+        "name": "Last contact"
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "short_press": "{subtype}: short press",
+      "long_press": "{subtype}: long press"
+    },
+    "trigger_subtype": {
+      "button_1": "Button 1",
+      "button_2": "Button 2",
+      "button_3": "Button 3",
+      "button_4": "Button 4",
+      "button_5": "Button 5",
+      "button_6": "Button 6",
+      "button_7": "Button 7",
+      "button_8": "Button 8"
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Tablo is not connected."
+    },
+    "due_needed": {
+      "message": "A deadline needs a due date."
+    },
+    "not_found": {
+      "message": "This deadline is no longer on the screen."
+    }
+  },
+  "services": {
+    "show_qr": {
+      "name": "Show Wi-Fi QR",
+      "description": "Shows QR codes of the Wi-Fi networks on the panel.",
+      "fields": {
+        "networks": {
+          "name": "Networks",
+          "description": "SSIDs from the Tablo settings. Empty: all."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Seconds on screen. Default 20."
+        }
+      }
+    },
+    "show_message": {
+      "name": "Show message",
+      "description": "Shows a message over the whole panel.",
+      "fields": {
+        "title": {
+          "name": "Title",
+          "description": "Large first line."
+        },
+        "text": {
+          "name": "Text",
+          "description": "Up to a few lines."
+        },
+        "icon": {
+          "name": "Icon",
+          "description": "An mdi icon."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Seconds on screen. Default 30."
+        }
+      }
+    },
+    "full_refresh": {
+      "name": "Full refresh",
+      "description": "Redraws the panel fully, clearing ghosting."
+    },
+    "refresh_data": {
+      "name": "Refresh data",
+      "description": "Polls the sources now instead of on their schedule.",
+      "fields": {
+        "sources": {
+          "name": "Sources",
+          "description": "Empty: all."
+        }
+      }
+    }
+  }
+}

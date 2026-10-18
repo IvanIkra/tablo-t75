@@ -29,6 +29,7 @@ class Deadline:
     category: str  # "study" | "personal"
     source: str  # "hseapp" | "mail" | "tg" | "ical" | "ha"
     course: str | None = None  # abbreviation from the subject dictionary, for merging duplicates
+    key: str = field(default="", compare=False)  # own deadlines from HA: "ha-<id>"; others are keyed by content
 
 
 @dataclass(frozen=True)

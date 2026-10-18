@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import datetime as dt
 import io
 import logging
 from pathlib import Path
@@ -83,9 +84,84 @@ async def refresh(request: web.Request) -> web.Response:
     _require_api_token(request)
     data = await _json(request) if request.can_read_body else {}
     hub = _hub(request)
+    if data.get("refetch") or data.get("sources"):
+        sources = data.get("sources")
+        if sources is not None and not (isinstance(sources, list) and all(isinstance(s, str) for s in sources)):
+            raise web.HTTPBadRequest(text="sources must be a list of names")
+        try:
+            hub.refetch(sources)
+        except ValueError as e:
+            raise web.HTTPBadRequest(text=str(e))
     await hub.push_base(force=True)
     if data.get("full"):
         await hub.broadcast({"type": "full_refresh"})
+    return web.json_response({"ok": True})
+
+
+async def get_config(request: web.Request) -> web.Response:
+    """For the HA integration to start from the config the service has now (§8.1)."""
+    _require_api_token(request)
+    return web.json_response(config_mod.to_dict(_hub(request).cfg))
+
+
+# --- to-do lists in HA (§8.4) -------------------------------------------------
+
+def _date(value) -> dt.date:
+    try:
+        return dt.date.fromisoformat(str(value))
+    except ValueError:
+        raise web.HTTPBadRequest(text="due must be a date like 2026-10-20")
+
+
+async def list_deadlines(request: web.Request) -> web.Response:
+    _require_api_token(request)
+    return web.json_response({"items": _hub(request).todo_items()})
+
+
+async def add_deadline(request: web.Request) -> web.Response:
+    _require_api_token(request)
+    data = await _json(request)
+    hub = _hub(request)
+    try:
+        d = hub.todo.add(str(data.get("title", "")), _date(data.get("due")), str(data.get("category", "")))
+    except ValueError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    await hub.deadlines_changed()
+    return web.json_response({"uid": d.key})
+
+
+def _deadline(request: web.Request):
+    d = _hub(request).find_deadline(request.match_info["uid"])
+    if d is None:
+        raise web.HTTPNotFound(text="no such deadline on the screen")
+    return d
+
+
+async def edit_deadline(request: web.Request) -> web.Response:
+    """{done: true} hides it; {title, due} changes it (a deadline from a source becomes an own copy)."""
+    _require_api_token(request)
+    data = await _json(request)
+    hub = _hub(request)
+    d = _deadline(request)
+    if data.get("done"):
+        hub.todo.remove(d)
+        await hub.deadlines_changed()
+        return web.json_response({"uid": None})
+    title = data.get("title")
+    due = _date(data["due"]) if data.get("due") else None
+    try:
+        new = hub.todo.edit(d, None if title is None else str(title), due)
+    except ValueError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    await hub.deadlines_changed()
+    return web.json_response({"uid": new.key})
+
+
+async def delete_deadline(request: web.Request) -> web.Response:
+    _require_api_token(request)
+    hub = _hub(request)
+    hub.todo.remove(_deadline(request))
+    await hub.deadlines_changed()
     return web.json_response({"ok": True})
 
 
@@ -102,7 +178,7 @@ async def put_config(request: web.Request) -> web.Response:
     cfg.host, cfg.port = hub.cfg.host, hub.cfg.port
     cfg.demo = hub.cfg.demo  # demo switches are a runtime choice, not part of the pushed config
     cfg.ha = hub.cfg.ha  # the service's own connection to HA is set up once, at start
-    hub.cfg = cfg
+    hub.set_config(cfg)
     if hub.data_dir:
         hub.data_dir.mkdir(parents=True, exist_ok=True)
         (hub.data_dir / "config.yaml").write_text(
@@ -182,7 +258,12 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     app.router.add_post("/api/overlay/qr", overlay_qr)
     app.router.add_post("/api/overlay/message", overlay_message)
     app.router.add_post("/api/refresh", refresh)
+    app.router.add_get("/api/config", get_config)
     app.router.add_put("/api/config", put_config)
+    app.router.add_get("/api/deadlines", list_deadlines)
+    app.router.add_post("/api/deadlines", add_deadline)
+    app.router.add_patch("/api/deadlines/{uid}", edit_deadline)
+    app.router.add_delete("/api/deadlines/{uid}", delete_deadline)
     app.router.add_get("/api/demo", get_demo)
     app.router.add_put("/api/demo", put_demo)
     app.router.add_get("/frame.png", frame_png)

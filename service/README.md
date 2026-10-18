@@ -43,13 +43,14 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 | Файл | Что |
 |---|---|
 | `tablo/protocol.py` | Формат кадра (§3.2) и зоны прошивки |
-| `tablo/config.py` | Схема конфига: `config.yaml` сейчас, `PUT /api/config` от интеграции HA потом |
+| `tablo/config.py` | Схема конфига: `config.yaml` или `PUT /api/config` от интеграции HA; `to_dict` для `GET /api/config` |
 | `tablo/hub.py` | WebSocket с платой, кадры, действия кнопок, полноэкранные экраны |
 | `tablo/app.py` | HTTP API (§6.4), раздача эмулятора |
 | `tablo/model.py`, `tablo/builder.py` | Модель экрана и её сборка из источников |
 | `tablo/render/` | Вёрстка (Pillow), значки погоды, QR и сообщения, упаковка в 1 бит |
 | `tablo/ha.py` | Клиент HA по WebSocket (состояния, `call_service`, `tablo_button`) и фейковый HA в памяти: 5 светильников, VPN-точка, датчик, принтер; Tuya отвечает с задержкой 2 с |
 | `tablo/sources/` | Источники: `grades.py` (Google Таблицы), `hseapp.py` (дедлайны the university app), `ical.py` (пары РУЗ и *Midterm*), `weather.py` (Open-Meteo), `telegram.py`, `mail.py` (новости) |
+| `tablo/todo.py` | Дедлайны как списки дел HA: свои пункты и скрытые (§8.4) |
 | `tablo/subjects.py` | Словарь предметов: короткое английское название и сокращение, общий для пар и дедлайнов |
 | `tablo/llm.py`, `tablo/store.py` | Haiku со структурированным ответом; SQLite |
 | `pages/hseapp.html` | Страница повторного входа в the university app |
@@ -65,7 +66,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 curl -X POST localhost:8765/api/overlay/message -H 'Authorization: Bearer dev-api-token' -d '{"title":"Hi","text":"Hello from curl","duration_s":10}'
 ```
 
-`GET /frame.png` — текущий кадр, `GET /api/status` — состояние платы и кадра.
+`GET /frame.png` — текущий кадр, `GET /api/status` — состояние платы и кадра. Остальное — для интеграции HA, список в §6.4.
 
 ## Режим шрифта
 

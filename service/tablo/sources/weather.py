@@ -16,6 +16,7 @@ import aiohttp
 from ..config import Config
 from ..model import HourForecast, WeatherNow
 from ..store import Store
+from . import nap
 
 log = logging.getLogger(__name__)
 
@@ -96,10 +97,14 @@ class WeatherSource:
     on_change: Callable[[], None]
     now: Callable[[], dt.datetime]
     status: Status = field(default_factory=Status)
+    _wake: asyncio.Event = field(default_factory=asyncio.Event)
 
     @property
     def cfg(self):
         return self.get_cfg().weather
+
+    def refetch(self) -> None:
+        self._wake.set()
 
     def current(self) -> tuple[WeatherNow | None, tuple[HourForecast, ...]]:
         return build(self.store.get_json(SAVED_KEY), self.now())
@@ -134,4 +139,4 @@ class WeatherSource:
     async def run(self) -> None:
         while True:
             await self.poll()
-            await asyncio.sleep(max(1, self.cfg.poll_minutes) * 60)
+            await nap(self._wake, max(1, self.cfg.poll_minutes) * 60)

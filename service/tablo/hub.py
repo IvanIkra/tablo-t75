@@ -13,11 +13,13 @@ from aiohttp import WSMsgType, web
 
 from . import builder, news, protocol
 from .config import Config, parse_demo
+from .model import Deadline
 from .llm import Haiku
 from .sources import hseapp, ical, mail, telegram, weather
 from .sources.grades import GradesSource, LayoutProvider
 from .store import Store
 from .subjects import Subjects
+from .todo import Todo, uid
 from .render import overlays, screen
 from .render.canvas import Canvas, pack
 
@@ -26,6 +28,8 @@ log = logging.getLogger(__name__)
 ACTION_TIMEOUT_S = 10
 RENDER_DEBOUNCE_S = 2.0
 HEALTH_INTERVAL_S = 60
+CHANGED_EVENT = "tablo_changed"  # the HA integration reads status or deadlines again (§8.1)
+REFETCH = ("grades", "hseapp", "ical", "news", "weather")
 
 
 @dataclass
@@ -35,6 +39,7 @@ class Device:
     connected_at: float = field(default_factory=time.time)
     status: dict = field(default_factory=dict)
     fw: str | None = None
+    last_seen: float = field(default_factory=time.time)
 
 
 class Hub:
@@ -87,7 +92,12 @@ class Hub:
         self.mail = mail.MailSource(get_cfg=lambda: self.cfg, store=self.store, now=self.now, on_new=self.news.wake)
         self.weather = weather.WeatherSource(get_cfg=lambda: self.cfg, store=self.store,
                                              on_change=lambda: self.schedule_render(0.5), now=self.now)
+        self.todo = Todo(self.store)
+        self.subjects.set_manual((s.name, s.title, s.abbr) for s in cfg.subjects)
         self.devices: dict[str, Device] = {}
+        self._signature: tuple | None = None
+        self.last_seen: float | None = None  # last message from any panel; kept after it goes offline
+        self.last_rssi: int | None = None
         self.base: protocol.Frame | None = None
         self.synced_at: dt.datetime | None = None
         self._frame_id = 0
@@ -99,6 +109,19 @@ class Hub:
                 h.add_listener(lambda entity, old, new: self.schedule_render())
                 h.add_status_listener(self._on_ha_status)
         self._load_demo()
+
+    def set_config(self, cfg: Config) -> None:
+        """A config from HA. A source whose links changed polls at once, not on its schedule."""
+        old, self.cfg = self.cfg, cfg
+        self.subjects.set_manual((s.name, s.title, s.abbr) for s in cfg.subjects)
+        changed = {"grades": (old.grades.sheets, old.grades.student) != (cfg.grades.sheets, cfg.grades.student),
+                   "ical": old.ical.url != cfg.ical.url,
+                   "news": old.news.channels != cfg.news.channels,
+                   "hseapp": old.hseapp.enabled != cfg.hseapp.enabled,
+                   "weather": (old.weather.latitude, old.weather.longitude)
+                   != (cfg.weather.latitude, cfg.weather.longitude)}
+        if any(changed.values()):
+            self.refetch([name for name, yes in changed.items() if yes])
 
     # --- demo data switches ---------------------------------------------------
 
@@ -148,14 +171,12 @@ class Hub:
         """Render the main screen; returns the current base frame (new or unchanged)."""
         async with self._render_lock:
             classes, classes_label = self.ical.classes()
+            deadlines = self.deadlines()
+            self._check_changed(deadlines)
             model = builder.build(self.now(), self.cfg, self.active_ha, weather=self.weather.current(),
                                   grades=self.grades.current(),
                                   grades_problem=self.grades.problem(),
-                                  # Each news deadline on its own: two posts may carry the same one.
-                                  deadlines=builder.drop_done(
-                                      builder.merge_deadlines(self.hseapp.current(), self.ical.deadlines(),
-                                                              *((d,) for d in self.news.deadlines())),
-                                      self.hseapp.done()),
+                                  deadlines=deadlines,
                                   news=self.news.current(),
                                   deadlines_problem=self.hseapp.problem(),
                                   classes=classes, classes_label=classes_label,
@@ -167,6 +188,71 @@ class Hub:
                 return self.base
             self.base = protocol.Frame(protocol.KIND_BASE, 0, self._next_id(), payload)
             return self.base
+
+    def deadlines(self) -> tuple[Deadline, ...]:
+        """All sources merged, without what is done in the university app or hidden in HA (§7.2)."""
+        merged = builder.merge_deadlines(self.hseapp.current(), self.ical.deadlines(),
+                                         # Each news deadline on its own: two posts may carry the same one.
+                                         *((d,) for d in self.news.deadlines()), self.todo.own())
+        return builder.drop_hidden(builder.drop_done(merged, self.hseapp.done()), self.todo.hidden())
+
+    def todo_items(self) -> list[dict]:
+        """The to-do lists in HA: what the Deadlines block would show, also past its 5 rows (§8.4)."""
+        today = self.now().date()
+        return [{"uid": uid(d), "title": d.title, "due": d.due.isoformat(), "category": d.category,
+                 "source": d.source, "overdue": d.due < today}
+                for d in screen.visible_deadlines(self.deadlines(), today)]
+
+    def find_deadline(self, item_uid: str) -> Deadline | None:
+        return next((d for d in self.deadlines() if uid(d) == item_uid), None)
+
+    async def deadlines_changed(self) -> None:
+        """A to-do list changed from HA: the screen follows at once."""
+        self.todo.prune(self.now().date())
+        await self.push_base()
+
+    def _check_changed(self, deadlines: tuple[Deadline, ...]) -> None:
+        """Tell HA when the to-do lists or the HSE login state changed (§8.4)."""
+        signature = (tuple((uid(d), d.title, d.due, d.category) for d in deadlines), self.hseapp.problem())
+        if signature != self._signature:
+            kinds = []
+            if self._signature is None or signature[0] != self._signature[0]:
+                kinds.append("deadlines")
+            if self._signature is None or signature[1] != self._signature[1]:
+                kinds.append("status")
+            self._signature = signature
+            for kind in kinds:
+                self.notify(kind)
+
+    def notify(self, kind: str) -> None:
+        """`tablo_changed` to the real HA (the fake one in tests); missed ones are caught by the integration's poll."""
+        ha = self.real_ha or self.ha
+        if ha is not None and ha.connected:
+            self._spawn(self._fire(ha, CHANGED_EVENT, {"kind": kind}))
+
+    async def _fire(self, ha, event: str, data: dict) -> None:
+        try:
+            await ha.fire_event(event, data)
+        except Exception as e:  # noqa: BLE001 - the integration polls as well
+            log.info("%s event failed: %s", event, e)
+
+    def refetch(self, sources: list[str] | None = None) -> None:
+        """`tablo.refresh_data`: poll the sources now instead of on their schedule."""
+        for name in sources or REFETCH:
+            match name:
+                case "grades":
+                    self.grades.refetch()
+                case "hseapp":
+                    self.hseapp.refetch()
+                case "ical":
+                    self.ical.refetch()
+                case "news":
+                    self.telegram.refetch()
+                    self.mail.refetch()
+                case "weather":
+                    self.weather.refetch()
+                case _:
+                    raise ValueError(f"unknown source {name!r}; known: {', '.join(REFETCH)}")
 
     async def push_base(self, force: bool = False) -> None:
         """Render and send to devices whose last frame differs (or all, if force)."""
@@ -258,6 +344,7 @@ class Hub:
         dev = Device(id=device_id, ws=ws)
         self.devices[device_id] = dev
         log.info("device %s connected from %s", device_id, request.remote)
+        self.notify("status")
         try:
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
@@ -267,10 +354,12 @@ class Hub:
         finally:
             if self.devices.get(device_id) is dev:
                 del self.devices[device_id]
+                self.notify("status")
             log.info("device %s disconnected", device_id)
         return ws
 
     async def _on_text(self, dev: Device, data: str) -> None:
+        dev.last_seen = self.last_seen = time.time()
         try:
             msg = json.loads(data)
             kind = msg["type"]
@@ -280,6 +369,7 @@ class Hub:
         if kind == "hello":
             dev.fw = msg.get("fw")
             dev.status.update({k: msg[k] for k in ("rssi", "uptime_s") if k in msg})
+            self._keep_rssi(dev)
             await self._send(dev, self.config_message())
             frame = self.base or await self.render_base()
             await self._send(dev, self.health_message())
@@ -287,12 +377,18 @@ class Hub:
                 await self._send(dev, protocol.encode_frame(frame))
         elif kind == "status":
             dev.status.update({k: v for k, v in msg.items() if k != "type"})
+            self._keep_rssi(dev)
         elif kind == "button":
             self._spawn(self._on_button(dev, msg))
         elif kind in ("overlay_closed", "frame_ack"):
             log.debug("device %s: %s", dev.id, msg)
         else:
             log.info("device %s: unknown message type %r", dev.id, kind)
+
+    def _keep_rssi(self, dev: Device) -> None:
+        """The Wi-Fi level stays known in HA after the panel goes offline (§8.4)."""
+        if isinstance(dev.status.get("rssi"), int):
+            self.last_rssi = dev.status["rssi"]
 
     async def _on_button(self, dev: Device, msg: dict) -> None:
         button_id, press, seq = msg.get("id"), msg.get("press"), msg.get("seq")
@@ -363,9 +459,13 @@ class Hub:
             await asyncio.sleep(60 - dt.datetime.now().second + 1)
 
     def status(self) -> dict:
+        seen = dt.datetime.fromtimestamp(self.last_seen, dt.UTC).isoformat() if self.last_seen else None
         return {
+            # What the entities in HA show (§8.4).
+            "panel": {"connected": bool(self.devices), "last_seen": seen, "rssi": self.last_rssi},
             "devices": {
-                d.id: {"connected_at": d.connected_at, "fw": d.fw, **d.status} for d in self.devices.values()
+                d.id: {"connected_at": d.connected_at, "last_seen": d.last_seen, "fw": d.fw, **d.status}
+                for d in self.devices.values()
             },
             "frame": {"id": self.base.frame_id, "crc": self.base.crc} if self.base else None,
             "ha": {
@@ -380,7 +480,8 @@ class Hub:
                 "llm": self.llm.available,
                 "sheets": {sid: vars(s) for sid, s in self.grades.status.items()},
             },
-            "hseapp": vars(self.hseapp.status),
+            "hseapp": {**vars(self.hseapp.status), "problem": self.hseapp.problem(),
+                       "login_needed": self.hseapp.problem() == "HSE login needed"},
             "ical": vars(self.ical.status),
             "news": vars(self.news.status),
             "mail": {"configured": self.mail.configured, **vars(self.mail.status)},

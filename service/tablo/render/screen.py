@@ -160,13 +160,20 @@ def _overdue_days(d) -> int:
     return OVERDUE_DAYS_BY_SOURCE.get(d.source, OVERDUE_DAYS)
 
 
+def visible_deadlines(deadlines, today: dt.date) -> list:
+    """Upcoming by date first, then overdue ones for a few days after the due date (§7.2).
+
+    The order of the block, and of the to-do lists in HA (§8.4).
+    """
+    upcoming = sorted((d for d in deadlines if d.due >= today), key=lambda d: d.due)
+    overdue = sorted((d for d in deadlines if today - dt.timedelta(days=_overdue_days(d)) <= d.due < today),
+                     key=lambda d: d.due, reverse=True)
+    return upcoming + overdue
+
+
 def _deadlines(c: Canvas, m: ScreenModel) -> None:
     today = m.today
-    # Upcoming by date first, then overdue ones for a few days after the due date (§7.2).
-    upcoming = sorted((d for d in m.deadlines if d.due >= today), key=lambda d: d.due)
-    overdue = sorted((d for d in m.deadlines if today - dt.timedelta(days=_overdue_days(d)) <= d.due < today),
-                     key=lambda d: d.due, reverse=True)
-    items = upcoming + overdue
+    items = visible_deadlines(m.deadlines, today)
     first = 1 if m.deadlines_problem else 0
     room = _rows(DEADLINES) - first
     more = len(items) - room

@@ -5,6 +5,7 @@ payload the Home Assistant integration sends to `PUT /api/config` (§6.5).
 Secrets come from the environment and override the file.
 """
 
+import dataclasses
 import datetime as dt
 import os
 from dataclasses import dataclass, field
@@ -172,6 +173,15 @@ class Home:
 
 
 @dataclass
+class SubjectName:
+    """A dictionary entry set by hand in HA (§7.3): Haiku never overwrites it."""
+
+    name: str  # as a source gives it: "Дискретная математика"
+    title: str  # Classes block: "Discrete Math"
+    abbr: str  # deadline prefix: "DM"
+
+
+@dataclass
 class HA:
     """§8.1: the service's own connection to HA. The token comes from TABLO_HA_TOKEN."""
 
@@ -203,6 +213,7 @@ class Config:
     mail: Mail = field(default_factory=Mail)
     weather: Weather = field(default_factory=Weather)
     home: Home = field(default_factory=Home)
+    subjects: list[SubjectName] = field(default_factory=list)
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -275,6 +286,10 @@ def from_dict(data: dict) -> Config:
     if not all(isinstance(e, str) and "." in e for e in cfg.home.lights):
         raise ConfigError("home.lights: entity ids like light.lamp")
 
+    cfg.subjects = [SubjectName(**_known(SubjectName, s, "subjects")) for s in data.pop("subjects", []) or []]
+    if not all(s.name.strip() and s.title.strip() and s.abbr.strip() for s in cfg.subjects):
+        raise ConfigError("subjects: each needs name, title and abbr")
+
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []
     ]
@@ -311,13 +326,51 @@ def parse_demo(data: dict) -> dict[str, bool]:
 def _apply_env(cfg: Config) -> None:
     cfg.device_token = os.environ.get("TABLO_DEVICE_TOKEN", cfg.device_token)
     cfg.api_token = os.environ.get("TABLO_API_TOKEN", cfg.api_token)
-    cfg.ical.url = os.environ.get("TABLO_ICAL_URL", cfg.ical.url)
+    cfg.ical.url = cfg.ical.url or os.environ.get("TABLO_ICAL_URL", "")  # the link set in HA wins
     cfg.mail.user = os.environ.get("TABLO_MAIL_USER", cfg.mail.user)
     cfg.mail.password = os.environ.get("TABLO_MAIL_PASSWORD", cfg.mail.password)
     cfg.ha.url = os.environ.get("TABLO_HA_URL", cfg.ha.url)
     cfg.ha.token = os.environ.get("TABLO_HA_TOKEN", cfg.ha.token)
     if "TABLO_PORT" in os.environ:
         cfg.port = int(os.environ["TABLO_PORT"])
+
+
+def to_dict(cfg: Config) -> dict:
+    """The config in the file's shape, for HA to import (`GET /api/config`).
+
+    Without what HA does not set: the listening address, tokens, the service's own
+    link to HA, demo switches, the mailbox login (§6.5).
+    """
+    def plain(obj) -> dict:
+        return {k: v for k, v in dataclasses.asdict(obj).items() if v is not None and v != []}
+
+    display = plain(cfg.display)
+    display["semester_start"] = cfg.display.semester_start.isoformat()
+    display["full_refresh"] = {"at": display.pop("full_refresh_at"), "max_partials": display.pop("max_partials")}
+    mail = plain(cfg.mail)
+    mail.pop("user", None)
+    mail.pop("password", None)
+    buttons = []
+    for b in cfg.buttons:
+        raw = {"id": b.id, "icon": b.icon}
+        if b.tile:
+            raw["tile"] = b.tile
+        raw["short"], raw["long"] = plain(b.short), plain(b.long)
+        buttons.append(raw)
+    return {
+        "display": display,
+        "overlays": {"qr_duration_s": cfg.qr_duration_s, "message_duration_s": cfg.message_duration_s},
+        "weather": plain(cfg.weather),
+        "home": dataclasses.asdict(cfg.home),
+        "grades": dataclasses.asdict(cfg.grades),
+        "hseapp": plain(cfg.hseapp),
+        "ical": plain(cfg.ical),
+        "news": dataclasses.asdict(cfg.news),
+        "mail": mail,
+        "subjects": [dataclasses.asdict(s) for s in cfg.subjects],
+        "wifi_networks": [dataclasses.asdict(n) for n in cfg.wifi_networks],
+        "buttons": buttons,
+    }
 
 
 def _merge(base: dict, override: dict) -> dict:

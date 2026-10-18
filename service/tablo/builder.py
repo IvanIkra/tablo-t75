@@ -121,8 +121,16 @@ def merge_deadlines(*sources: tuple[Deadline, ...]) -> tuple[Deadline, ...]:
 
 def drop_done(deadlines: tuple[Deadline, ...], done: tuple[Deadline, ...]) -> tuple[Deadline, ...]:
     """Hide copies of work completed in the university app: same course and work, dates up to 14 days apart (§7.2)."""
-    return tuple(d for d in deadlines if d.source == "hseapp" or not any(
+    return tuple(d for d in deadlines if d.source in ("hseapp", "ha") or not any(
         abs((d.due - x.due).days) <= DONE_WINDOW_DAYS and _same_work(d, x) for x in done))
+
+
+def drop_hidden(deadlines: tuple[Deadline, ...], hidden: tuple[Deadline, ...]) -> tuple[Deadline, ...]:
+    """Hide what was deleted or marked done in HA, also when it comes back from another source (§7.2).
+
+    The user's own deadlines are deleted, not hidden: an edited copy of a hidden one stays.
+    """
+    return tuple(d for d in deadlines if d.source == "ha" or not any(_same(d, h) for h in hidden))
 
 
 def build(now: dt.datetime, cfg: Config, ha, grades: tuple = (), grades_problem: str | None = None,

@@ -23,6 +23,7 @@ from ..config import Config
 from ..llm import LLMError
 from ..model import ClassItem, Deadline
 from ..store import Store
+from . import nap
 from ..subjects import Subjects, clean
 
 log = logging.getLogger(__name__)
@@ -136,6 +137,9 @@ class IcalSource:
     def cfg(self):
         return self.get_cfg().ical
 
+    def refetch(self) -> None:
+        self._wake.set()
+
     def events(self) -> list[Event]:
         """Last known feed, kept in the store so a restart shows it before the first poll."""
         saved = self.store.get_json(EVENTS_KEY) or {}
@@ -207,8 +211,4 @@ class IcalSource:
         while True:
             if self.cfg.url:
                 await self.poll()
-            self._wake.clear()
-            try:
-                await asyncio.wait_for(self._wake.wait(), max(1, self.cfg.poll_minutes) * 60)
-            except asyncio.TimeoutError:
-                pass
+            await nap(self._wake, max(1, self.cfg.poll_minutes) * 60)
