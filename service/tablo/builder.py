@@ -8,8 +8,7 @@ import datetime as dt
 import re
 
 from . import stub
-from .config import Config
-from .ha import LIGHTS
+from .config import Config, Printer
 from .model import Deadline, Home, ScreenModel, Tile
 
 REFRESH_TILE = Tile(icon="mdi:refresh", on=False)
@@ -30,19 +29,51 @@ def tiles(cfg: Config, ha) -> tuple[Tile, ...]:
     return tuple(result)
 
 
-def home(ha) -> Home:
-    def number(entity):
-        try:
-            return float(ha.state(entity))
-        except (TypeError, ValueError):
-            return None
+def _number(ha, entity: str) -> float | None:
+    try:
+        return float(ha.state(entity)) if entity else None
+    except (TypeError, ValueError):
+        return None
 
+
+PRINTER_WORDS = {"standby": "idle", "cancelled": "idle", "complete": "done", "error": "error"}
+MINUTES = {"s": 1 / 60, "min": 1, "h": 60, "d": 1440}
+
+
+def printer(ha, p: Printer) -> tuple[str | None, str]:
+    """State word and detail from the Moonraker sensors (§7.6): ("printing", "42% · 1:20"), ("idle", "")."""
+    if not p.state:
+        return None, ""
+    state = ha.state(p.state)
+    if state in (None, "unavailable", "unknown"):
+        return "off", ""  # Klipper host or printer powered off
+    if state not in ("printing", "paused"):
+        return PRINTER_WORDS.get(state, state), ""
+    parts = []
+    progress = _number(ha, p.progress)
+    if progress is not None:
+        parts.append(f"{progress:.0f}%")
+    left = _number(ha, p.time_left)
+    unit = MINUTES.get(ha.attribute(p.time_left, "unit_of_measurement")) if p.time_left else None
+    if state == "printing" and left is not None and unit:
+        minutes = round(left * unit)
+        parts.append(f"{minutes // 60}:{minutes % 60:02d}")
+    return state, " · ".join(parts)
+
+
+def home(ha, cfg: Config) -> Home | None:
+    """None until HA has sent its states once; after that the last known ones, also offline (§11)."""
+    if ha is None or not ha.ready:
+        return None
+    h = cfg.home
+    state, detail = printer(ha, h.printer)
     return Home(
-        temp=number("sensor.room_sensor_temperature"),
-        humidity=number("sensor.room_sensor_humidity"),
-        lights_on=sum(ha.state(e) == "on" for e in LIGHTS),
-        lights_total=len(LIGHTS),
-        printer="idle",
+        temp=_number(ha, h.temperature),
+        humidity=_number(ha, h.humidity),
+        lights_on=sum(ha.state(e) == "on" for e in h.lights),
+        lights_total=len(h.lights),
+        printer=state,
+        printer_detail=detail,
     )
 
 
@@ -97,10 +128,10 @@ def drop_done(deadlines: tuple[Deadline, ...], done: tuple[Deadline, ...]) -> tu
 def build(now: dt.datetime, cfg: Config, ha, grades: tuple = (), grades_problem: str | None = None,
           deadlines: tuple = (), deadlines_problem: str | None = None,
           classes: tuple = (), classes_label: str = "", classes_problem: str | None = None,
-          news: tuple = ()) -> ScreenModel:
-    """grades, deadlines, classes, news: real data from the sources, used when the demo switch is off."""
+          news: tuple = (), weather: tuple = (None, ())) -> ScreenModel:
+    """grades, deadlines, classes, news, weather: real data from the sources, used when the demo switch is off."""
     demo = cfg.demo
-    weather, forecast = stub.weather(now) if demo["weather"] else (None, ())
+    weather, forecast = stub.weather(now) if demo["weather"] else weather
     if demo["classes"]:
         classes, classes_label = stub.classes(now)
         classes_problem = None
@@ -116,6 +147,6 @@ def build(now: dt.datetime, cfg: Config, ha, grades: tuple = (), grades_problem:
         classes=classes,
         classes_label=classes_label,
         classes_problem=classes_problem,
-        home=home(ha) if ha is not None else None,
+        home=home(ha, cfg),
         tiles=tiles(cfg, ha),
     )

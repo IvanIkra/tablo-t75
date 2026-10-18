@@ -317,8 +317,12 @@ def _home(c: Canvas, m: ScreenModel) -> None:
         climate.append(f"{h.humidity:.0f}%")
     bold = fonts.inter(16, "semibold")
     _row(c, HOME, 0, " · ".join(climate) or "—")
-    _row(c, HOME, 1, "lights", f"{h.lights_on} of {h.lights_total}", right_font=bold)
-    _row(c, HOME, 2, "printer", h.printer, right_font=bold)
+    if h.lights_total:
+        _row(c, HOME, 1, "lights", f"{h.lights_on} of {h.lights_total}", right_font=bold)
+    if h.printer and h.printer_detail:
+        _row(c, HOME, 2, h.printer, h.printer_detail, right_font=bold)
+    elif h.printer:
+        _row(c, HOME, 2, "printer", h.printer, right_font=bold)
 
 
 def _tiles(c: Canvas, m: ScreenModel) -> None:

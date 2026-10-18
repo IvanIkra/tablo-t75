@@ -1,0 +1,120 @@
+# Home Assistant scripts behind the Tablo buttons (§8.2).
+# Paste into scripts.yaml (or Settings → Automations & scenes → Scripts → Edit in YAML, one script at a time).
+# The ids match the button actions in service/config.yaml; the light entities match §8.2.
+
+all_lights_off:
+  alias: Tablo · All lights off
+  icon: mdi:power
+  sequence:
+    - action: light.turn_off
+      target:
+        entity_id:
+          - light.ceiling_light
+          - light.desk_lamp
+          - light.desk_light
+          - light.desk_backlight
+          - light.closet_light
+
+leaving_home:
+  alias: Tablo · Leaving home
+  icon: mdi:exit-run
+  sequence:
+    - action: light.turn_off
+      target:
+        entity_id:
+          - light.ceiling_light
+          - light.desk_lamp
+          - light.desk_light
+          - light.desk_backlight
+          - light.closet_light
+    - action: switch.turn_off
+      target:
+        entity_id: switch.vpn_ap
+
+# Solo: one light on, the other four off.
+solo_light:
+  alias: Tablo · Solo light
+  mode: queued
+  fields:
+    light:
+      name: Light
+      required: true
+      selector:
+        entity:
+          domain: light
+  sequence:
+    - action: light.turn_on
+      target:
+        entity_id: "{{ light }}"
+    - action: light.turn_off
+      target:
+        entity_id: "{{ ['light.ceiling_light', 'light.desk_lamp', 'light.desk_light', 'light.desk_backlight', 'light.closet_light'] | reject('eq', light) | list }}"
+
+solo_ceiling:
+  alias: Tablo · Solo ceiling
+  icon: mdi:ceiling-light
+  sequence:
+    - action: script.solo_light
+      data:
+        light: light.ceiling_light
+
+solo_desk:
+  alias: Tablo · Solo desk
+  icon: mdi:desk
+  sequence:
+    - action: script.solo_light
+      data:
+        light: light.desk_light
+
+# 100 → 40 → 10 → 100 %; from off it starts at 100.
+lamp_brightness_cycle:
+  alias: Tablo · Lamp brightness cycle
+  icon: mdi:lamp
+  mode: queued
+  variables:
+    lamp: light.desk_lamp
+    pct: "{{ ((state_attr(lamp, 'brightness') or 0) / 2.55) | round(0) if is_state(lamp, 'on') else 0 }}"
+  sequence:
+    - action: light.turn_on
+      target:
+        entity_id: "{{ lamp }}"
+      data:
+        brightness_pct: "{{ 40 if pct > 70 else 10 if pct > 25 else 100 }}"
+
+# Colour by hue: warm → red → green → blue → purple → warm. From off it starts warm.
+backlight_color_cycle:
+  alias: Tablo · Backlight colour cycle
+  icon: mdi:led-strip-variant
+  mode: queued
+  variables:
+    strip: light.desk_backlight
+    hues: [30, 0, 120, 240, 290]
+    hue: "{{ (state_attr(strip, 'hs_color') or [-1])[0] if is_state(strip, 'on') else -1 }}"
+    # Tuya reports the hue a little off: the nearest step counts as the current one.
+    index: >-
+      {%- set ns = namespace(best=-1, dist=1000) -%}
+      {%- for h in hues -%}
+        {%- set d = [(h - hue) | abs, 360 - (h - hue) | abs] | min -%}
+        {%- if hue >= 0 and d < ns.dist %}{% set ns.best = loop.index0 %}{% set ns.dist = d %}{% endif -%}
+      {%- endfor -%}
+      {{ ns.best }}
+  sequence:
+    - action: light.turn_on
+      target:
+        entity_id: "{{ strip }}"
+      data:
+        hs_color: ["{{ hues[(index + 1) % hues | length] }}", 100]
+
+# Closet light on, off again after 5 minutes; a second press restarts the 5 minutes.
+closet_5min:
+  alias: Tablo · Closet for 5 min
+  icon: mdi:hanger
+  mode: restart
+  sequence:
+    - action: light.turn_on
+      target:
+        entity_id: light.closet_light
+    - delay: "00:05:00"
+    - action: light.turn_off
+      target:
+        entity_id: light.closet_light

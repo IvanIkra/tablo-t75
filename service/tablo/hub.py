@@ -14,7 +14,7 @@ from aiohttp import WSMsgType, web
 from . import builder, news, protocol
 from .config import Config, parse_demo
 from .llm import Haiku
-from .sources import hseapp, ical, mail, telegram
+from .sources import hseapp, ical, mail, telegram, weather
 from .sources.grades import GradesSource, LayoutProvider
 from .store import Store
 from .subjects import Subjects
@@ -38,9 +38,11 @@ class Device:
 
 
 class Hub:
-    def __init__(self, cfg: Config, ha, data_dir: Path | None = None, llm=None):
+    def __init__(self, cfg: Config, ha, data_dir: Path | None = None, llm=None, real_ha=None):
+        """ha: the fake house behind the "fake HA" demo switch; real_ha: HomeAssistant, if a token is set."""
         self.cfg = cfg
         self.ha = ha
+        self.real_ha = real_ha
         self.data_dir = data_dir
         self.store = Store(data_dir / "tablo.db" if data_dir else ":memory:")
         self.llm = llm or Haiku()
@@ -83,6 +85,8 @@ class Hub:
         self.telegram = telegram.TelegramSource(get_cfg=lambda: self.cfg, store=self.store, now=self.now,
                                                 on_new=self.news.wake)
         self.mail = mail.MailSource(get_cfg=lambda: self.cfg, store=self.store, now=self.now, on_new=self.news.wake)
+        self.weather = weather.WeatherSource(get_cfg=lambda: self.cfg, store=self.store,
+                                             on_change=lambda: self.schedule_render(0.5), now=self.now)
         self.devices: dict[str, Device] = {}
         self.base: protocol.Frame | None = None
         self.synced_at: dt.datetime | None = None
@@ -90,15 +94,23 @@ class Hub:
         self._render_lock = asyncio.Lock()
         self._render_task: asyncio.Task | None = None
         self._tasks: set[asyncio.Task] = set()
-        ha.add_listener(lambda entity, old, new: self.schedule_render())
+        for h in (ha, real_ha):
+            if h is not None:
+                h.add_listener(lambda entity, old, new: self.schedule_render())
+                h.add_status_listener(self._on_ha_status)
         self._load_demo()
 
     # --- demo data switches ---------------------------------------------------
 
     @property
     def active_ha(self):
-        """The HA to use, or None: the fake HA can be switched off to see the real state."""
-        return self.ha if self.cfg.demo["ha"] else None
+        """The fake HA while its demo switch is on, else the real one (None without a token)."""
+        return self.ha if self.cfg.demo["ha"] else self.real_ha
+
+    def _on_ha_status(self) -> None:
+        """Connection to HA came or went: the house icon in the status line follows at once."""
+        self._spawn(self.broadcast(self.health_message()))
+        self.schedule_render(0.5)
 
     def _demo_path(self) -> Path | None:
         return self.data_dir / "demo.json" if self.data_dir else None
@@ -136,7 +148,8 @@ class Hub:
         """Render the main screen; returns the current base frame (new or unchanged)."""
         async with self._render_lock:
             classes, classes_label = self.ical.classes()
-            model = builder.build(self.now(), self.cfg, self.active_ha, grades=self.grades.current(),
+            model = builder.build(self.now(), self.cfg, self.active_ha, weather=self.weather.current(),
+                                  grades=self.grades.current(),
                                   grades_problem=self.grades.problem(),
                                   # Each news deadline on its own: two posts may carry the same one.
                                   deadlines=builder.drop_done(
@@ -285,8 +298,12 @@ class Hub:
         button_id, press, seq = msg.get("id"), msg.get("press"), msg.get("seq")
         if press not in ("short", "long") or not isinstance(button_id, int):
             return
-        if self.active_ha:
-            await self.active_ha.fire_event("tablo_button", {"button": button_id, "press": press})
+        ha = self.active_ha
+        if ha and ha.connected:
+            try:
+                await ha.fire_event("tablo_button", {"button": button_id, "press": press})
+            except Exception as e:  # noqa: BLE001 - the button's own action still runs
+                log.warning("tablo_button event failed: %s", e)
         ok, error = True, None
         try:
             if button_id == 8:
@@ -310,7 +327,7 @@ class Hub:
             return
         action = button.short if press == "short" else button.long
         ha = self.active_ha
-        if action.action in ("toggle", "script") and ha is None:
+        if action.action in ("toggle", "script") and not (ha and ha.connected):
             raise RuntimeError("Home Assistant is not connected")
         match action.action:
             case "toggle":
@@ -351,7 +368,13 @@ class Hub:
                 d.id: {"connected_at": d.connected_at, "fw": d.fw, **d.status} for d in self.devices.values()
             },
             "frame": {"id": self.base.frame_id, "crc": self.base.crc} if self.base else None,
-            "ha": {"mode": self.cfg.ha_mode, "connected": bool(self.active_ha and self.active_ha.connected)},
+            "ha": {
+                "fake": self.cfg.demo["ha"],
+                "connected": bool(self.active_ha and self.active_ha.connected),
+                "real": {"url": self.real_ha.ws_url, "connected": self.real_ha.connected,
+                         "ready": self.real_ha.ready, "error": self.real_ha.error} if self.real_ha else None,
+            },
+            "weather": vars(self.weather.status),
             "demo": dict(self.cfg.demo),
             "grades": {
                 "llm": self.llm.available,

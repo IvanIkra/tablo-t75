@@ -12,7 +12,7 @@ from aiohttp import web
 
 from . import config as config_mod
 from .config import Config, ConfigError
-from .ha import FakeHA
+from .ha import FakeHA, HomeAssistant
 from .hub import Hub
 from .render.canvas import unpack
 
@@ -101,6 +101,7 @@ async def put_config(request: web.Request) -> web.Response:
     cfg.device_token, cfg.api_token = hub.cfg.device_token, hub.cfg.api_token
     cfg.host, cfg.port = hub.cfg.host, hub.cfg.port
     cfg.demo = hub.cfg.demo  # demo switches are a runtime choice, not part of the pushed config
+    cfg.ha = hub.cfg.ha  # the service's own connection to HA is set up once, at start
     hub.cfg = cfg
     if hub.data_dir:
         hub.data_dir.mkdir(parents=True, exist_ok=True)
@@ -167,9 +168,13 @@ async def root(request: web.Request) -> web.Response:
 
 
 def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: bool = True) -> web.Application:
-    """data_dir keeps the config last pushed by HA and the demo switches."""
+    """data_dir keeps the config last pushed by HA and the demo switches.
+
+    ha replaces the fake house (tests); the real HA is used only when none is given and a token is set.
+    """
     app = web.Application()
-    hub = Hub(cfg, ha or FakeHA(), data_dir)
+    real_ha = HomeAssistant(cfg.ha.url, cfg.ha.token) if ha is None and cfg.ha.token else None
+    hub = Hub(cfg, ha or FakeHA(), data_dir, real_ha=real_ha)
     app[HUB] = hub
 
     app.router.add_get("/ws", ws_handler)
@@ -200,8 +205,10 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
 
     if periodic:
         async def background(app: web.Application):
-            runs = (hub.run_periodic(), hub.grades.run(), hub.university.examplen(), hub.ical.run(),
-                    hub.telegram.run(), hub.mail.run(), hub.news.run())
+            runs = [hub.run_periodic(), hub.grades.run(), hub.university.examplen(), hub.ical.run(),
+                    hub.telegram.run(), hub.mail.run(), hub.news.run(), hub.weather.run()]
+            if hub.real_ha:
+                runs.append(hub.real_ha.run())
             tasks = [asyncio.create_task(c) for c in runs]
             yield
             for task in tasks:

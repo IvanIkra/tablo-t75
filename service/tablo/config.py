@@ -143,6 +143,42 @@ class Mail:
     password: str = ""
 
 
+@dataclass
+class Weather:
+    """§7.4: Open-Meteo, no key."""
+
+    latitude: float = 55.7558
+    longitude: float = 37.6173
+    poll_minutes: int = 15
+
+
+@dataclass
+class Printer:
+    """Sensors of the Moonraker integration in HA (§7.6). Empty state = no printer row."""
+
+    state: str = ""  # current print state: standby, printing, paused, complete, cancelled, error
+    progress: str = ""  # %
+    time_left: str = ""  # unit from the sensor's unit_of_measurement
+
+
+@dataclass
+class Home:
+    """§7.6, §8.3: what the Home block reads from HA."""
+
+    temperature: str = "sensor.room_sensor_temperature"
+    humidity: str = "sensor.room_sensor_humidity"
+    lights: list[str] = field(default_factory=list)  # counted for "lights N of M"
+    printer: Printer = field(default_factory=Printer)
+
+
+@dataclass
+class HA:
+    """§8.1: the service's own connection to HA. The token comes from TABLO_HA_TOKEN."""
+
+    url: str = "http://192.168.1.50:8123"
+    token: str = ""
+
+
 DEMO_KEYS = ("weather", "deadlines", "grades", "news", "classes", "ha")
 
 
@@ -152,7 +188,7 @@ class Config:
     port: int = 8765
     device_token: str = "dev-device-token"
     api_token: str = "dev-api-token"
-    ha_mode: str = "fake"
+    ha: HA = field(default_factory=HA)
     display: Display = field(default_factory=Display)
     buttons: list[Button] = field(default_factory=list)
     wifi_networks: list[WifiNetwork] = field(default_factory=list)
@@ -165,6 +201,8 @@ class Config:
     ical: Ical = field(default_factory=Ical)
     news: News = field(default_factory=News)
     mail: Mail = field(default_factory=Mail)
+    weather: Weather = field(default_factory=Weather)
+    home: Home = field(default_factory=Home)
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -187,7 +225,7 @@ def from_dict(data: dict) -> Config:
     cfg.port = int(server.get("port", cfg.port))
     cfg.device_token = (data.pop("device", {}) or {}).get("token", cfg.device_token)
     cfg.api_token = (data.pop("api", {}) or {}).get("token", cfg.api_token)
-    cfg.ha_mode = (data.pop("ha", {}) or {}).get("mode", cfg.ha_mode)
+    cfg.ha = HA(**_known(HA, dict(data.pop("ha", {}) or {}), "ha"))
 
     display = dict(data.pop("display", {}) or {})
     full_refresh = display.pop("full_refresh", {}) or {}
@@ -229,6 +267,13 @@ def from_dict(data: dict) -> Config:
         raise ConfigError("news.channels: duplicate channels")
     cfg.news = News(channels=channels, **_known(News, news, "news"))
     cfg.mail = Mail(**_known(Mail, dict(data.pop("mail", {}) or {}), "mail"))
+    cfg.weather = Weather(**_known(Weather, dict(data.pop("weather", {}) or {}), "weather"))
+
+    home = dict(data.pop("home", {}) or {})
+    printer = Printer(**_known(Printer, dict(home.pop("printer", {}) or {}), "home.printer"))
+    cfg.home = Home(printer=printer, **_known(Home, home, "home"))
+    if not all(isinstance(e, str) and "." in e for e in cfg.home.lights):
+        raise ConfigError("home.lights: entity ids like light.lamp")
 
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []
@@ -269,6 +314,8 @@ def _apply_env(cfg: Config) -> None:
     cfg.ical.url = os.environ.get("TABLO_ICAL_URL", cfg.ical.url)
     cfg.mail.user = os.environ.get("TABLO_MAIL_USER", cfg.mail.user)
     cfg.mail.password = os.environ.get("TABLO_MAIL_PASSWORD", cfg.mail.password)
+    cfg.ha.url = os.environ.get("TABLO_HA_URL", cfg.ha.url)
+    cfg.ha.token = os.environ.get("TABLO_HA_TOKEN", cfg.ha.token)
     if "TABLO_PORT" in os.environ:
         cfg.port = int(os.environ["TABLO_PORT"])
 

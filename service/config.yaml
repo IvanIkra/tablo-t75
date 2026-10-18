@@ -11,8 +11,28 @@ device:
 api:
   token: dev-api-token
 
+# The service's own link to HA (§8.1); the long-lived token goes in .env as TABLO_HA_TOKEN.
+# Without a token only the fake HA (the "fake HA" demo switch) is there.
 ha:
-  mode: fake   # in-memory Home Assistant until stage 6
+  url: http://192.168.1.50:8123
+
+weather:
+  latitude: 55.7558
+  longitude: 37.6173
+
+home:
+  temperature: sensor.room_sensor_temperature
+  humidity: sensor.room_sensor_humidity
+  lights:   # "lights N of M"
+    - light.ceiling_light
+    - light.desk_lamp
+    - light.desk_light
+    - light.desk_backlight
+    - light.closet_light
+  printer:  # Moonraker integration; check the names once it is installed in HA
+    state: sensor.printer_current_print_state
+    progress: sensor.printer_progress
+    time_left: sensor.printer_print_time_left
 
 display:
   tz: MSK-3

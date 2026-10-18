@@ -65,7 +65,8 @@ class Home:
     humidity: float | None
     lights_on: int
     lights_total: int
-    printer: str
+    printer: str | None = None  # "idle", "printing", "off"...; None = no printer configured
+    printer_detail: str = ""  # "42% · 1:20" while printing; the state word then takes the row's left side
 
 
 @dataclass(frozen=True)

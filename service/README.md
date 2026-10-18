@@ -35,6 +35,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 
   Дальше сервис сам обновляет токен. Если на экране *HSE login needed* — войти заново на <http://localhost:8765/hseapp>.
 - **Пары** (этап 4): ссылка РУЗ в `.env` как `TABLO_ICAL_URL`. Английские названия предметов — словарь в таблице `subjects`, новые заполняет Haiku.
+- **Погода** (этап 6): Open-Meteo без ключа, секция `weather`.
+- **Дом** (этап 6): долгоживущий токен HA (Профиль → Безопасность → «Долгоживущие токены доступа») в `.env` как `TABLO_HA_TOKEN`, адрес — `ha.url`. Датчики, светильники и принтер — секция `home`; имена сущностей Moonraker сверить после установки интеграции. В эмуляторе снять флажок *fake HA*, чтобы видеть настоящий дом. Скрипты для долгих нажатий — [`../ha-integration/scripts/tablo.yaml`](../ha-integration/scripts/tablo.yaml), вставить в `scripts.yaml` HA.
 
 ## Что где
 
@@ -46,8 +48,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 | `tablo/app.py` | HTTP API (§6.4), раздача эмулятора |
 | `tablo/model.py`, `tablo/builder.py` | Модель экрана и её сборка из источников |
 | `tablo/render/` | Вёрстка (Pillow), значки погоды, QR и сообщения, упаковка в 1 бит |
-| `tablo/ha.py` | Фейковый HA: 5 светильников, VPN-точка, датчик; Tuya отвечает с задержкой 2 с |
-| `tablo/sources/` | Источники: `grades.py` (Google Таблицы), `hseapp.py` (дедлайны the university app), `ical.py` (пары РУЗ и *Midterm*) |
+| `tablo/ha.py` | Клиент HA по WebSocket (состояния, `call_service`, `tablo_button`) и фейковый HA в памяти: 5 светильников, VPN-точка, датчик, принтер; Tuya отвечает с задержкой 2 с |
+| `tablo/sources/` | Источники: `grades.py` (Google Таблицы), `hseapp.py` (дедлайны the university app), `ical.py` (пары РУЗ и *Midterm*), `weather.py` (Open-Meteo), `telegram.py`, `mail.py` (новости) |
 | `tablo/subjects.py` | Словарь предметов: короткое английское название и сокращение, общий для пар и дедлайнов |
 | `tablo/llm.py`, `tablo/store.py` | Haiku со структурированным ответом; SQLite |
 | `pages/hseapp.html` | Страница повторного входа в the university app |

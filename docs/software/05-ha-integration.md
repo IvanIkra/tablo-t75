@@ -39,7 +39,7 @@
 | 7 | `mdi:wifi` | `switch.vpn_ap` | Wi-Fi QR: основная сеть + VPN, 20 с |
 | 8 | `mdi:refresh` | *прошито*: полное обновление | *прошито*: диагностика 30 с |
 
-«Соло», «яркость по кругу» и таймер — это скрипты HA. Шаблоны для них положим в репозиторий.
+«Соло», «яркость по кругу» и таймер — это скрипты HA. Шаблоны — в [`ha-integration/scripts/tablo.yaml`](../../ha-integration/scripts/tablo.yaml): `all_lights_off`, `leaving_home`, `solo_ceiling` и `solo_desk` (через общий `solo_light`), `lamp_brightness_cycle` (100 → 40 → 10%), `backlight_color_cycle` (тёплый → красный → зелёный → синий → фиолетовый), `closet_5min`.
 
 ### 8.3 Остальные настройки
 
