@@ -1,4 +1,4 @@
-"""Tablo T75: buttons, sources and to-do lists of the e-ink panel in Home Assistant (§8)."""
+"""Tablo T75: buttons and settings of the e-ink panel in Home Assistant (§8)."""
 
 from __future__ import annotations
 
@@ -16,10 +16,11 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import TabloApi, TabloError
-from .const import CHANGED_EVENT, CONF_API_TOKEN, CONF_URL, DOMAIN, LOGIN_NOTIFICATION, OPT_CONFIG, SOURCES
+from .const import (CHANGED_EVENT, CONF_API_TOKEN, CONF_URL, DOMAIN, LOGIN_NOTIFICATION, OLD_CONFIG_KEYS, OPT_BOT,
+                    OPT_CONFIG, SOURCES)
 from .coordinator import TabloCoordinator
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.TODO]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
 type TabloConfigEntry = ConfigEntry[TabloCoordinator]
 
@@ -102,6 +103,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: TabloConfigEntry) -> boo
     return True
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: TabloConfigEntry) -> bool:
+    """1.2: the source settings moved to infomaster; the service would refuse a config that still has them."""
+    if entry.version == 1 and entry.minor_version < 2:
+        options = dict(entry.options)
+        config = {k: v for k, v in options.get(OPT_CONFIG, {}).items() if k not in OLD_CONFIG_KEYS}
+        if "ical" in config:
+            config["ical"] = {k: v for k, v in config["ical"].items() if k in ("url", "poll_minutes")}
+        hass.config_entries.async_update_entry(entry, options={**options, OPT_CONFIG: config}, minor_version=2)
+    return True
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: TabloConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
@@ -119,7 +131,7 @@ async def _options_updated(hass: HomeAssistant, entry: TabloConfigEntry) -> None
 
 @callback
 def _login_notice(hass: HomeAssistant, entry: TabloConfigEntry) -> None:
-    """the university app needs a new login (§7.2): a notification with the link to the login page."""
+    """the university app needs a new login in infomaster (§7.2): a notification with the link to its bot."""
     coordinator = entry.runtime_data
     if coordinator.data is None:
         return
@@ -128,11 +140,12 @@ def _login_notice(hass: HomeAssistant, entry: TabloConfigEntry) -> None:
         return  # once per change: a dismissed notification does not come back every poll
     coordinator.login_needed = needed
     if needed:
-        url = f"{entry.data[CONF_URL]}/hseapp?api_token={entry.data[CONF_API_TOKEN]}"
+        bot = entry.options.get(OPT_BOT, "").strip().lstrip("@")
+        where = (f"[Log in again](https://t.me/{bot}?start=hseapp) in the infomaster bot." if bot
+                 else "Log in again in the infomaster bot (Mini App, the university app).")
         persistent_notification.async_create(
             hass,
-            f"The login to the university app has expired, so the panel shows no deadlines from it. "
-            f"[Log in again]({url}) in any browser.",
+            f"The login to the university app has expired, so the panel shows no new deadlines from it. {where}",
             title="Tablo: HSE login needed",
             notification_id=LOGIN_NOTIFICATION,
         )

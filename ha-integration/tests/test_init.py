@@ -1,4 +1,4 @@
-"""Connecting, importing the config, entities, actions, the HSE login notice and the brand images."""
+"""Connecting, importing the config, migration, entities, actions, the HSE login notice and the brand images."""
 
 from pathlib import Path
 
@@ -8,7 +8,9 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.setup import async_setup_component
 from tablo import config as service_config
 
-from custom_components.tablo.const import DOMAIN, LOGIN_NOTIFICATION, OPT_CONFIG
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.tablo.const import DOMAIN, LOGIN_NOTIFICATION, OPT_BOT, OPT_CONFIG
 from .conftest import TOKEN
 
 BRAND = Path(__file__).resolve().parents[1] / "custom_components" / DOMAIN / "brand"
@@ -54,22 +56,9 @@ async def test_entities_follow_the_panel(hass: HomeAssistant, entry, service):
     await client.close()
 
 
-async def test_llm_sensors_show_the_last_runs(hass: HomeAssistant, entry, hub):
-    import datetime as dt
-    assert hass.states.get("sensor.tablo_llm_run_news").state == "unknown"
-    at = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
-    hub._on_llm_run({"at": at, "task": "news", "model": "claude-haiku-5-5", "ok": True, "error": None,
-                     "input_tokens": 3000, "output_tokens": 200, "cache_write": 0, "cache_read": 0,
-                     "cost_usd": 0.0004, "duration_s": 3.2})
-    await entry.runtime_data.async_refresh()
-    await hass.async_block_till_done()
-    news = hass.states.get("sensor.tablo_llm_run_news")
-    assert news.state != "unknown"
-    assert (news.attributes["input_tokens"], news.attributes["cost_usd"], news.attributes["duration_s"]) == (
-        3000, 0.0004, 3.2)
-    assert hass.states.get("sensor.tablo_llm_run_grades").state == "unknown"
-    cost = hass.states.get("sensor.tablo_llm_cost_today")
-    assert float(cost.state) == 0.0004 and cost.attributes["runs"] == 1
+async def test_no_todo_lists_or_llm_sensors(hass: HomeAssistant, entry):
+    assert not hass.states.async_entity_ids("todo")
+    assert not [e for e in hass.states.async_entity_ids("sensor") if "llm" in e]
 
 
 async def service_client(service):
@@ -79,14 +68,37 @@ async def service_client(service):
     return client
 
 
-async def test_hse_login_notice(hass: HomeAssistant, entry, hub):
-    # The test service has the university app on and no login.
+def _uni_status(hub, **hseapp):
+    hub.store.put_json("infomaster.status", {"fetched_at": hub.now().isoformat(), "data": {"hseapp": hseapp}})
+
+
+async def test_hse_login_notice_links_the_bot(hass: HomeAssistant, entry, hub):
     notices = persistent_notification._async_get_or_create_notifications(hass)
-    assert LOGIN_NOTIFICATION in notices
-    assert "/hseapp?api_token=" in notices[LOGIN_NOTIFICATION]["message"]
-    hub.cfg.hseapp.enabled = False
+    assert LOGIN_NOTIFICATION not in notices  # nothing known from infomaster yet
+    hass.config_entries.async_update_entry(entry, options={**entry.options, OPT_BOT: "example_bot"})
+    _uni_status(hub, login_needed=True, logged_in=False)
+    await entry.runtime_data.async_refresh()
+    assert "https://t.me/example_bot?start=hseapp" in notices[LOGIN_NOTIFICATION]["message"]
+    _uni_status(hub, login_needed=False, logged_in=True)
     await entry.runtime_data.async_refresh()
     assert LOGIN_NOTIFICATION not in notices
+
+
+async def test_old_source_settings_are_dropped_on_migration(hass: HomeAssistant, url, hub):
+    config = service_config.to_dict(hub.cfg)
+    config.update(grades={"student": "Ivanov Ivan", "sheets": []}, hseapp={"enabled": True},
+                  news={"channels": [{"name": "example_news3", "study": False}]}, mail={"enabled": True},
+                  subjects=[{"name": "Матан", "title": "Calculus", "abbr": "Calc"}])
+    config["ical"] = {"url": "http://infomaster:8081/calendar/s/tablo.ics", "poll_minutes": 60}
+    old = MockConfigEntry(domain=DOMAIN, version=1, minor_version=1, data={"url": url, "api_token": TOKEN},
+                          options={OPT_CONFIG: config})
+    old.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(old.entry_id)
+    await hass.async_block_till_done()
+    assert old.minor_version == 2
+    assert not {"grades", "hseapp", "news", "mail", "subjects"} & set(old.options[OPT_CONFIG])
+    assert old.runtime_data.pushed == old.options[OPT_CONFIG]  # the service took it
+    assert hub.cfg.ical.url.endswith("tablo.ics")
 
 
 async def test_actions(hass: HomeAssistant, entry, hub, monkeypatch):
@@ -105,11 +117,11 @@ async def test_actions(hass: HomeAssistant, entry, hub, monkeypatch):
     await hass.services.async_call(DOMAIN, "show_message", {"title": "Hi", "text": "there", "icon": "mdi:bell",
                                                             "duration": 10}, blocking=True)
     await hass.services.async_call(DOMAIN, "show_qr", {"networks": "Home"}, blocking=True)
-    await hass.services.async_call(DOMAIN, "refresh_data", {"sources": ["news", "grades"]}, blocking=True)
+    await hass.services.async_call(DOMAIN, "refresh_data", {"sources": ["infomaster", "weather"]}, blocking=True)
     await hass.services.async_call(DOMAIN, "refresh_data", {}, blocking=True)
     await hass.services.async_call(DOMAIN, "full_refresh", {}, blocking=True)
     assert calls == [("message", "Hi", "there", "mdi:bell", 10), ("qr", ["Home"], None)]
-    assert refetched == [["news", "grades"], None]
+    assert refetched == [["infomaster", "weather"], None]
 
 
 async def test_config_is_pushed_again_after_the_service_restarts(hass: HomeAssistant, entry, hub):

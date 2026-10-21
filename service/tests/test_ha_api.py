@@ -1,4 +1,4 @@
-"""What the HA integration uses: config import, to-do lists, refetch, change events (§6.4, §8)."""
+"""What the HA integration uses: config import, refetch, change events, status (§6.4, §8)."""
 
 import datetime as dt
 from pathlib import Path
@@ -8,7 +8,7 @@ import pytest
 from tablo import config
 from tablo.app import HUB, create_app
 from tablo.ha import FakeHA
-from tablo.model import Deadline
+from tablo.sources import infomaster
 
 CFG_PATH = Path(__file__).resolve().parents[1] / "config.yaml"
 AUTH = {"Authorization": "Bearer dev-api-token"}
@@ -21,20 +21,25 @@ async def client(aiohttp_client, tmp_path):
     return await aiohttp_client(app)
 
 
+def _uni_status(hub, **hseapp):
+    """infomaster's status as if just fetched."""
+    hub.store.put_json("infomaster.status", {"fetched_at": hub.now().isoformat(), "data": {"hseapp": hseapp}})
+
+
 def test_to_dict_round_trip_without_secrets(monkeypatch):
-    monkeypatch.setenv("TABLO_MAIL_PASSWORD", "secret")
+    monkeypatch.setenv("TABLO_UNIMASTER_TOKEN", "secret")
     cfg = config.load(CFG_PATH, local=False)
     d = config.to_dict(cfg)
-    assert not {"server", "device", "api", "ha", "demo"} & set(d)
-    assert "password" not in d["mail"] and "user" not in d["mail"]
+    assert not {"server", "device", "api", "ha", "demo", "infomaster_token"} & set(d)
+    assert d["infomaster"] == {"url": "http://infomaster:8081", "poll_seconds": 60}
     again = config.from_dict(d)
-    assert config.to_dict(again) == d and again.mail.password == "secret"
+    assert config.to_dict(again) == d and again.infomaster_token == "secret"
 
 
-def test_ical_link_from_ha_wins_over_env(monkeypatch):
-    monkeypatch.setenv("TABLO_ICAL_URL", "https://env")
-    assert config.from_dict({}).ical.url == "https://env"
-    assert config.from_dict({"ical": {"url": "https://ha"}}).ical.url == "https://ha"
+def test_old_source_settings_are_rejected():
+    for key in ("grades", "hseapp", "news", "mail", "subjects"):
+        with pytest.raises(config.ConfigError, match="unknown"):
+            config.from_dict({key: {}})
 
 
 async def test_config_needs_token(client):
@@ -43,94 +48,100 @@ async def test_config_needs_token(client):
     assert (await resp.json())["buttons"][0]["short"]["entity"] == "script.all_lights_on"
 
 
-async def test_subjects_from_ha_are_manual(client):
+async def test_pushed_config_keeps_the_infomaster_token(client):
     hub = client.app[HUB]
-    hub.subjects.set("Матан", "Calc", "Calc", manual=False)
+    hub.cfg.infomaster_token = "from-env"
     data = config.to_dict(hub.cfg)
-    data["subjects"] = [{"name": "Дискретная математика", "title": "Discrete Math", "abbr": "DM"}]
+    data["ical"]["url"] = "http://infomaster:8081/calendar/s/tablo.ics"
     assert (await client.put("/api/config", json=data, headers=AUTH)).status == 200
-    assert hub.subjects.get("Дискретная математика").abbr == "DM"
-    data["subjects"] = []
-    await client.put("/api/config", json=data, headers=AUTH)
-    assert hub.subjects.get("Дискретная математика") is None  # Haiku's to name again
-    assert hub.subjects.get("Матан").title == "Calc"  # Haiku's own entries stay
+    assert hub.cfg.infomaster_token == "from-env" and hub.cfg.ical.url.endswith("tablo.ics")
 
 
-async def test_todo_api(client, monkeypatch):
-    hub = client.app[HUB]
-    today = hub.now().date()
-    mail = Deadline("Calc HW 3", today + dt.timedelta(days=1), "study", "mail", "Calc")
-    old = Deadline("Prog HW 1", today - dt.timedelta(days=2), "study", "hseapp", "Prog")
-    monkeypatch.setattr(hub.news, "deadlines", lambda: (mail,))
-    monkeypatch.setattr(hub.hseapp, "current", lambda: (old,))
-    resp = await client.get("/api/deadlines", headers=AUTH)
-    items = (await resp.json())["items"]
-    assert [(i["title"], i["source"], i["overdue"]) for i in items] == [
-        ("Calc HW 3", "mail", False), ("Prog HW 1", "hseapp", True)]
-
-    # A new own deadline: needs a date and a list.
-    bad = await client.post("/api/deadlines", json={"title": "Dentist", "category": "personal"}, headers=AUTH)
-    assert bad.status == 400
-    resp = await client.post("/api/deadlines", headers=AUTH, json={
-        "title": "Dentist", "due": (today + dt.timedelta(days=5)).isoformat(), "category": "personal"})
-    own = (await resp.json())["uid"]
-    assert own.startswith("ha-")
-
-    # Done hides it for good, also when it comes back from Telegram.
-    uid = items[0]["uid"]
-    assert (await client.patch(f"/api/deadlines/{uid}", json={"done": True}, headers=AUTH)).status == 200
-    monkeypatch.setattr(hub.news, "deadlines",
-                        lambda: (Deadline("Calc HW 3", today + dt.timedelta(days=1), "study", "tg", "Calc"),))
-    titles = [d.title for d in hub.deadlines()]
-    assert titles == ["Prog HW 1", "Dentist"]
-
-    # Editing one from a source: hidden, an own copy with the new date.
-    later = (today + dt.timedelta(days=9)).isoformat()
-    resp = await client.patch(f"/api/deadlines/{items[1]['uid']}", json={"due": later}, headers=AUTH)
-    copy = (await resp.json())["uid"]
-    got = {d.title: (d.source, d.due.isoformat()) for d in hub.deadlines()}
-    assert got == {"Prog HW 1": ("ha", later), "Dentist": ("ha", (today + dt.timedelta(days=5)).isoformat())}
-
-    assert (await client.delete(f"/api/deadlines/{copy}", headers=AUTH)).status == 200
-    assert (await client.delete(f"/api/deadlines/{own}", headers=AUTH)).status == 200
-    assert hub.deadlines() == ()
-    assert (await client.delete(f"/api/deadlines/{own}", headers=AUTH)).status == 404
+async def test_old_deadline_and_hseapp_routes_are_gone(client):
+    for method, path in (("GET", "/api/deadlines"), ("POST", "/api/deadlines"), ("GET", "/hseapp"),
+                         ("GET", "/api/llm/runs"), ("GET", "/api/hseapp/login")):
+        assert (await client.request(method, path, headers=AUTH)).status in (404, 405)
 
 
-async def test_changes_fire_tablo_changed(client, monkeypatch):
+async def test_login_change_fires_tablo_changed(client):
     hub = client.app[HUB]
     await hub.render_base()
     events = hub.ha.events
-    assert ("tablo_changed", {"kind": "deadlines"}) in events
+    assert events == [("tablo_changed", {"kind": "status"})]
     events.clear()
     await hub.render_base()
     assert events == []  # nothing changed
-    d = Deadline("Calc HW 3", hub.now().date(), "study", "tg", "Calc")
-    monkeypatch.setattr(hub.news, "deadlines", lambda: (d,))
+    _uni_status(hub, login_needed=True)
     await hub.render_base()
     for task in list(hub._tasks):
         await task
-    assert events == [("tablo_changed", {"kind": "deadlines"})]
+    assert events == [("tablo_changed", {"kind": "status"})]
 
 
 async def test_refresh_refetches_sources(client, monkeypatch):
     hub = client.app[HUB]
     woken = []
-    monkeypatch.setattr(hub.grades, "refetch", lambda: woken.append("grades"))
-    monkeypatch.setattr(hub.telegram, "refetch", lambda: woken.append("tg"))
-    monkeypatch.setattr(hub.mail, "refetch", lambda: woken.append("mail"))
-    resp = await client.post("/api/refresh", json={"sources": ["grades", "news"]}, headers=AUTH)
-    assert resp.status == 200 and woken == ["grades", "tg", "mail"]
-    resp = await client.post("/api/refresh", json={"sources": ["nope"]}, headers=AUTH)
-    assert resp.status == 400
+    monkeypatch.setattr(hub.infomaster, "refetch", lambda: woken.append("infomaster"))
+    monkeypatch.setattr(hub.weather, "refetch", lambda: woken.append("weather"))
+    resp = await client.post("/api/refresh", json={"sources": ["infomaster", "weather"]}, headers=AUTH)
+    assert resp.status == 200 and woken == ["infomaster", "weather"]
+    for old in ("grades", "news", "hseapp"):
+        resp = await client.post("/api/refresh", json={"sources": [old]}, headers=AUTH)
+        assert resp.status == 400
 
 
-async def test_status_has_panel_and_login(client):
+async def test_status_has_panel_and_login_from_infomaster(client):
+    hub = client.app[HUB]
     ws = await client.ws_connect("/ws?device=test&token=dev-device-token")
     await ws.send_json({"type": "hello", "rssi": -70})
     await ws.receive(timeout=5)
     await ws.send_json({"type": "button", "id": 4, "press": "short", "seq": 1})
     status = await (await client.get("/api/status")).json()
     assert status["panel"]["connected"] and status["panel"]["rssi"] == -70 and status["panel"]["last_seen"]
-    assert status["hseapp"]["login_needed"] is True
+    assert status["hseapp"]["login_needed"] is False and status["infomaster"]["down"] is True
+    assert "llm" not in status and "news" not in status and "grades" not in status
+    _uni_status(hub, login_needed=True, logged_in=False)
+    status = await (await client.get("/api/status")).json()
+    assert status["hseapp"]["login_needed"] is True and status["hseapp"]["problem"] == "HSE login needed"
+    await ws.close()
+
+
+async def test_health_tells_the_panel_when_infomaster_goes_and_comes_back(client):
+    hub = client.app[HUB]
+    ws = await client.ws_connect("/ws?device=test&token=dev-device-token")
+    await ws.send_json({"type": "hello"})
+    await ws.receive(timeout=5)  # config
+    health = await ws.receive_json(timeout=5)
+    assert health["type"] == "health" and health["data"] is False and "llm" not in health
+    await ws.receive(timeout=5)  # frame
+    for name in infomaster.ENDPOINTS:
+        hub.store.put_json(f"infomaster.{name}", {"fetched_at": hub.now().isoformat(), "data": {"items": []}})
+    hub.infomaster.status.ok_at = hub.now().isoformat()
+    await hub.render_base()
+    msg = await ws.receive_json(timeout=5)
+    assert msg["type"] == "health" and msg["data"] is True
+    await ws.close()
+
+
+async def test_infomaster_going_quiet_between_polls_reaches_the_panel(client, monkeypatch):
+    """DOWN_AFTER runs out between two polls: the next render tells the panel, and so does the way back."""
+    hub = client.app[HUB]
+    for name in infomaster.ENDPOINTS:
+        hub.store.put_json(f"infomaster.{name}", {"fetched_at": hub.now().isoformat(), "data": {"items": []}})
+    hub.infomaster.status.ok_at = hub.now().isoformat()
+    ws = await client.ws_connect("/ws?device=test&token=dev-device-token")
+    await ws.send_json({"type": "hello"})
+    await ws.receive(timeout=5)  # config
+    assert (await ws.receive_json(timeout=5))["data"] is True
+    await ws.receive(timeout=5)  # frame
+    hub.infomaster.status.error = "deadlines: HTTP 503"
+    later = hub.now() + infomaster.DOWN_AFTER + dt.timedelta(minutes=1)
+    monkeypatch.setattr(hub.infomaster, "now", lambda: later)
+    await hub.render_base()
+    assert (await ws.receive_json(timeout=5))["data"] is False
+    # A panel that reconnects now hears the same; the way back is told at once.
+    await hub.render_base()
+    hub.infomaster.status.error = None
+    await hub.render_base()
+    assert (await ws.receive_json(timeout=5))["data"] is True
     await ws.close()

@@ -109,16 +109,28 @@ def test_due_labels():
     assert _due_label(today - dt.timedelta(days=1), today) == "overdue"
 
 
-def test_old_overdue_deadlines_are_dropped():
+def test_deadlines_are_drawn_as_infomaster_gives_them():
     today = NOW.date()
-    model = ScreenModel(today=today, deadlines=(
-        Deadline("recent", today - dt.timedelta(days=2), "study", "hseapp"),
-        Deadline("ancient", today - dt.timedelta(days=10), "study", "hseapp"),
-    ))
-    # Only the 3-day overdue window counts, so no "+N" overflow and one row drawn.
-    bw = screen.render(model).to_bw()
-    first_row, second_row = (8, 144, 256, 22), (8, 168, 256, 22)
-    assert _black(bw, first_row) > 0 and _black(bw, second_row) == 0
+    items = tuple(Deadline(f"HW {n}", today + dt.timedelta(days=n), "study", "hseapp") for n in range(6, 0, -1))
+    model = ScreenModel(today=today, deadlines=(*items, Deadline("old", today - dt.timedelta(days=9), "study", "tg")))
+    c = Canvas()
+    screen._deadlines(c, model)
+    # Five rows of the seven, in the order given (no sorting, no window): "+2" in the header.
+    plain = Canvas()
+    screen._block_header(plain, screen.DEADLINES, "Deadlines", "+2")
+    header = (0, 100, 272, 36)
+    assert _black(c.to_bw(), header) == _black(plain.to_bw(), header)
+    first = Canvas()
+    screen._row(first, screen.DEADLINES, 0, "HW 6", "Oct 24", left_x=screen.DEADLINE_TEXT_X)
+    row = (screen.DEADLINE_TEXT_X, 144, 200, 22)
+    assert _black(c.to_bw(), row) == _black(first.to_bw(), row)
+
+
+def test_news_problem_replaces_no_news():
+    with_problem = screen.render(ScreenModel(today=NOW.date(), news_problem="news unavailable")).to_bw()
+    without = screen.render(ScreenModel(today=NOW.date())).to_bw()
+    first_line = (screen.NEWS[0] + 8, 144, 200, 22)
+    assert _black(with_problem, first_line) != _black(without, first_line)
 
 
 def test_wrap_marks_cut_text():

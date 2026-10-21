@@ -1,4 +1,6 @@
 # Production run on server (§12): cd ~/tablo && docker compose up -d --build
+# infomaster must be up first: its compose creates the "infomaster" network Tablo joins to reach
+# http://infomaster:8081 (deadlines, news, grades, tablo.ics) by service name.
 # Bridge network, not host: with network_mode: host the container would take the host's DNS,
 # so DNS is set explicitly.
 services:
@@ -7,6 +9,7 @@ services:
     image: tablo:latest
     container_name: tablo
     restart: unless-stopped
+    networks: [default, infomaster]
     ports:
       # One LAN address only: another service on the host may already hold 127.0.0.1:8765.
       - "192.168.1.50:8765:8765"
@@ -25,3 +28,7 @@ services:
       options:
         max-size: 5m
         max-file: "3"
+
+networks:
+  infomaster:
+    external: true

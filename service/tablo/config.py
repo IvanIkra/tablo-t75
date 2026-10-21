@@ -82,66 +82,19 @@ class Display:
 
 
 @dataclass
-class Sheet:
-    url: str
-    label: str | None = None  # short course name on screen; None = derived from the sheet title
-
-
-@dataclass
-class Grades:
-    """§7.1: grade sheets kept by teachers, shared by link."""
-
-    student: str = ""  # surname and first name as written in the sheets
-    sheets: list[Sheet] = field(default_factory=list)
-    window_days: int = 7
-    poll_minutes: int = 30
-    # Development aid: also show grades that were already there on the first fetch.
-    include_baseline: bool = False
-
-
-@dataclass
-class HseApp:
-    """§7.2: personal deadlines from the university app. The login itself lives in the store, not here."""
-
-    enabled: bool = True
-    poll_minutes: int = 15
-
-
-@dataclass
 class Ical:
-    """§7.3: the RUZ timetable. The link is a secret: TABLO_ICAL_URL in .env (later from HA)."""
+    """§7.3: the timetable, infomaster's tablo.ics feed. Its link carries the feed's secret."""
 
     url: str = ""
-    poll_minutes: int = 60
+    poll_minutes: int = 10
 
 
 @dataclass
-class Channel:
-    name: str  # without "@"
-    study: bool = False  # study channels are polled more often and their posts rank higher
+class Unimaster:
+    """§7.2: deadlines, news and grades from infomaster's internal API. The token is TABLO_UNIMASTER_TOKEN."""
 
-
-@dataclass
-class News:
-    """§7.5: public Telegram channels through t.me/s (mail comes later), read by Haiku."""
-
-    channels: list[Channel] = field(default_factory=list)
-    ttl_hours: int = 24  # news lifetime; also how far back the first poll of a channel reaches
-    study_poll_minutes: int = 5
-    poll_minutes: int = 15
-
-
-@dataclass
-class Mail:
-    """§7.5: the @edu.hse.ru box over IMAP. user and password come from TABLO_MAIL_USER / TABLO_MAIL_PASSWORD."""
-
-    enabled: bool = True
-    host: str = "imap.yandex.ru"
-    port: int = 993
-    folder: str = "INBOX"
-    poll_minutes: int = 5
-    user: str = ""
-    password: str = ""
+    url: str = "http://infomaster:8081"
+    poll_seconds: int = 60
 
 
 @dataclass
@@ -207,15 +160,6 @@ def legacy_home_rows(home: dict) -> list[HomeRow]:
 
 
 @dataclass
-class SubjectName:
-    """A dictionary entry set by hand in HA (§7.3): Haiku never overwrites it."""
-
-    name: str  # as a source gives it: "Дискретная математика"
-    title: str  # Classes block: "Discrete Math"
-    abbr: str  # deadline prefix: "DM"
-
-
-@dataclass
 class HA:
     """§8.1: the service's own connection to HA. The token comes from TABLO_HA_TOKEN."""
 
@@ -232,6 +176,7 @@ class Config:
     port: int = 8765
     device_token: str = "dev-device-token"
     api_token: str = "dev-api-token"
+    infomaster_token: str = ""
     ha: HA = field(default_factory=HA)
     display: Display = field(default_factory=Display)
     buttons: list[Button] = field(default_factory=list)
@@ -240,14 +185,10 @@ class Config:
     message_duration_s: int = 30
     # Which blocks show demo data until their real source exists; "ha" is the in-memory fake HA.
     demo: dict[str, bool] = field(default_factory=lambda: dict.fromkeys(DEMO_KEYS, True))
-    grades: Grades = field(default_factory=Grades)
-    hseapp: HseApp = field(default_factory=HseApp)
+    infomaster: Unimaster = field(default_factory=Unimaster)
     ical: Ical = field(default_factory=Ical)
-    news: News = field(default_factory=News)
-    mail: Mail = field(default_factory=Mail)
     weather: Weather = field(default_factory=Weather)
     home: Home = field(default_factory=Home)
-    subjects: list[SubjectName] = field(default_factory=list)
 
     def button(self, button_id: int) -> Button | None:
         return next((b for b in self.buttons if b.id == button_id), None)
@@ -290,28 +231,8 @@ def from_dict(data: dict) -> Config:
 
     cfg.demo.update(parse_demo(data.pop("demo", {}) or {}))
 
-    grades = dict(data.pop("grades", {}) or {})
-    sheets = [Sheet(**_known(Sheet, s, "grades.sheets")) for s in grades.pop("sheets", []) or []]
-    cfg.grades = Grades(sheets=sheets, **_known(Grades, grades, "grades"))
-    if sheets and not cfg.grades.student.strip():
-        raise ConfigError("grades.student is required to find your row in the sheets")
-
-    cfg.hseapp = HseApp(**_known(HseApp, dict(data.pop("hseapp", {}) or {}), "hseapp"))
+    cfg.infomaster = Unimaster(**_known(Unimaster, dict(data.pop("infomaster", {}) or {}), "infomaster"))
     cfg.ical = Ical(**_known(Ical, dict(data.pop("ical", {}) or {}), "ical"))
-
-    news = dict(data.pop("news", {}) or {})
-    channels = []
-    for raw in news.pop("channels", []) or []:
-        raw = {"name": raw} if isinstance(raw, str) else dict(raw)
-        channel = Channel(**_known(Channel, raw, "news.channels"))
-        channel.name = channel.name.strip().rstrip("/").rsplit("/", 1)[-1].lstrip("@")
-        if not channel.name:
-            raise ConfigError("news.channels: empty channel name")
-        channels.append(channel)
-    if len({c.name.casefold() for c in channels}) != len(channels):
-        raise ConfigError("news.channels: duplicate channels")
-    cfg.news = News(channels=channels, **_known(News, news, "news"))
-    cfg.mail = Mail(**_known(Mail, dict(data.pop("mail", {}) or {}), "mail"))
     cfg.weather = Weather(**_known(Weather, dict(data.pop("weather", {}) or {}), "weather"))
 
     home = dict(data.pop("home", {}) or {})
@@ -330,10 +251,6 @@ def from_dict(data: dict) -> Config:
     if len(rows) > HOME_ROWS_MAX:
         raise ConfigError(f"home.rows: at most {HOME_ROWS_MAX} rows fit the block")
     cfg.home = Home(rows=rows)
-
-    cfg.subjects = [SubjectName(**_known(SubjectName, s, "subjects")) for s in data.pop("subjects", []) or []]
-    if not all(s.name.strip() and s.title.strip() and s.abbr.strip() for s in cfg.subjects):
-        raise ConfigError("subjects: each needs name, title and abbr")
 
     cfg.wifi_networks = [
         WifiNetwork(**_known(WifiNetwork, n, "wifi_networks")) for n in data.pop("wifi_networks", []) or []
@@ -371,9 +288,7 @@ def parse_demo(data: dict) -> dict[str, bool]:
 def _apply_env(cfg: Config) -> None:
     cfg.device_token = os.environ.get("TABLO_DEVICE_TOKEN", cfg.device_token)
     cfg.api_token = os.environ.get("TABLO_API_TOKEN", cfg.api_token)
-    cfg.ical.url = cfg.ical.url or os.environ.get("TABLO_ICAL_URL", "")  # the link set in HA wins
-    cfg.mail.user = os.environ.get("TABLO_MAIL_USER", cfg.mail.user)
-    cfg.mail.password = os.environ.get("TABLO_MAIL_PASSWORD", cfg.mail.password)
+    cfg.infomaster_token = os.environ.get("TABLO_UNIMASTER_TOKEN", cfg.infomaster_token)
     cfg.ha.url = os.environ.get("TABLO_HA_URL", cfg.ha.url)
     cfg.ha.token = os.environ.get("TABLO_HA_TOKEN", cfg.ha.token)
     if "TABLO_PORT" in os.environ:
@@ -384,7 +299,7 @@ def to_dict(cfg: Config) -> dict:
     """The config in the file's shape, for HA to import (`GET /api/config`).
 
     Without what HA does not set: the listening address, tokens, the service's own
-    link to HA, demo switches, the mailbox login (§6.5).
+    link to HA, demo switches (§6.5).
     """
     def plain(obj) -> dict:
         return {k: v for k, v in dataclasses.asdict(obj).items() if v is not None and v != []}
@@ -392,9 +307,6 @@ def to_dict(cfg: Config) -> dict:
     display = plain(cfg.display)
     display["semester_start"] = cfg.display.semester_start.isoformat()
     display["full_refresh"] = {"at": display.pop("full_refresh_at"), "max_partials": display.pop("max_partials")}
-    mail = plain(cfg.mail)
-    mail.pop("user", None)
-    mail.pop("password", None)
     buttons = []
     for b in cfg.buttons:
         raw = {"id": b.id, "icon": b.icon}
@@ -407,12 +319,8 @@ def to_dict(cfg: Config) -> dict:
         "overlays": {"qr_duration_s": cfg.qr_duration_s, "message_duration_s": cfg.message_duration_s},
         "weather": plain(cfg.weather),
         "home": dataclasses.asdict(cfg.home),
-        "grades": dataclasses.asdict(cfg.grades),
-        "hseapp": plain(cfg.hseapp),
+        "infomaster": plain(cfg.infomaster),
         "ical": plain(cfg.ical),
-        "news": dataclasses.asdict(cfg.news),
-        "mail": mail,
-        "subjects": [dataclasses.asdict(s) for s in cfg.subjects],
         "wifi_networks": [dataclasses.asdict(n) for n in cfg.wifi_networks],
         "buttons": buttons,
     }
@@ -428,8 +336,7 @@ def _merge(base: dict, override: dict) -> dict:
 def load(path: Path, local: bool = True) -> Config:
     """Load a config file, then `<name>.local.yaml` next to it if present.
 
-    The local file is for personal settings that stay out of git: sheet links,
-    calendar links, the student name.
+    The local file is for personal settings that stay out of git: the calendar link.
     """
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}

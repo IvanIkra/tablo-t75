@@ -5,11 +5,12 @@ DOMAIN = "tablo"
 CONF_URL = "url"
 CONF_API_TOKEN = "api_token"
 OPT_CONFIG = "config"  # the service config, same shape as service/config.yaml (§6.5)
+OPT_BOT = "bot"  # username of the infomaster bot, for the HSE login link; never sent to the service
 
 DEFAULT_URL = "http://192.168.1.50:8765"
 
 BUTTON_EVENT = "tablo_button"  # fired by the service: {button, press}
-CHANGED_EVENT = "tablo_changed"  # fired by the service: {kind: "status" | "deadlines"}
+CHANGED_EVENT = "tablo_changed"  # fired by the service: {kind: "status"}
 
 POLL_SECONDS = 60  # events bring changes at once; the poll catches missed ones and the Wi-Fi level
 
@@ -19,7 +20,8 @@ PRESSES = ("short", "long")
 
 ACTIONS = ("toggle", "script", "qr", "message", "event", "none")
 RUN_DOMAINS = ("script", "scene", "automation", "button", "input_button")
-SOURCES = ("grades", "hseapp", "ical", "news", "weather")
-LLM_TASKS = ("news", "grades", "deadlines", "subjects")  # what the service calls Haiku for (§6.6)
+SOURCES = ("infomaster", "ical", "weather")
+# Source settings that moved to infomaster's Mini App: an entry saved before still has them, the service refuses them.
+OLD_CONFIG_KEYS = ("grades", "hseapp", "news", "mail", "subjects")
 
 LOGIN_NOTIFICATION = "tablo_hseapp_login"

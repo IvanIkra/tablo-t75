@@ -47,8 +47,6 @@ refresh_data:
           multiple: true
           translation_key: source
           options:
-            - grades
-            - hseapp
+            - infomaster
             - ical
-            - news
             - weather

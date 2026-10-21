@@ -105,26 +105,16 @@
       "sources": {
         "title": "Sources",
         "data": {
-          "ical_url": "RUZ calendar link (iCal)",
-          "hseapp": "Deadlines from the university app",
-          "student": "Your name as in the grade sheets",
-          "sheets": "Grade sheets",
-          "window_days": "Grades count as new for",
-          "channels": "Telegram channels",
-          "ttl_hours": "News lifetime",
-          "mail": "University mail (IMAP)",
-          "subjects": "Subject names",
+          "ical_url": "Timetable link (infomaster tablo.ics)",
           "latitude": "Weather: latitude",
-          "longitude": "Weather: longitude"
+          "longitude": "Weather: longitude",
+          "bot": "infomaster bot"
         },
         "data_description": {
-          "hseapp": "Log in on the service page /hseapp.",
-          "student": "Surname and first name.",
-          "sheets": "One per line: `link | label`. The label is the short course name on screen; empty: from the sheet title.",
-          "channels": "One per line: `@channel`, or `@channel study` for study channels (polled more often, rank higher).",
-          "mail": "The box and the app password are in the service's .env.",
-          "subjects": "Fixes for the names Haiku gives, one per line: `name as in the source | English title | Abbr`. Other subjects are named by Haiku."
-        }
+          "ical_url": "http://infomaster:8081/calendar/<CALENDAR_SECRET>/tablo.ics",
+          "bot": "Its username, for the link in the the university app login notification."
+        },
+        "description": "Deadlines, news and grades come from infomaster and are set up in its Mini App."
       },
       "home": {
         "title": "Home block",
@@ -181,10 +171,8 @@
     },
     "source": {
       "options": {
-        "grades": "Grades",
-        "hseapp": "the university app",
+        "infomaster": "infomaster (deadlines, news, grades)",
         "ical": "Timetable",
-        "news": "News (Telegram and mail)",
         "weather": "Weather"
       }
     }
@@ -201,21 +189,6 @@
       },
       "last_contact": {
         "name": "Last contact"
-      },
-      "llm_news": {
-        "name": "LLM run: news"
-      },
-      "llm_grades": {
-        "name": "LLM run: grades"
-      },
-      "llm_deadlines": {
-        "name": "LLM run: deadlines"
-      },
-      "llm_subjects": {
-        "name": "LLM run: subjects"
-      },
-      "llm_cost_today": {
-        "name": "LLM cost today"
       }
     }
   },
@@ -238,12 +211,6 @@
   "exceptions": {
     "not_loaded": {
       "message": "Tablo is not connected."
-    },
-    "due_needed": {
-      "message": "A deadline needs a due date."
-    },
-    "not_found": {
-      "message": "This deadline is no longer on the screen."
     }
   },
   "services": {

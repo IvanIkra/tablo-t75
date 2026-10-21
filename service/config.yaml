@@ -16,6 +16,16 @@ api:
 ha:
   url: http://192.168.1.50:8123
 
+# Deadlines, news and grades (§7.2): infomaster's internal API, reached in its docker network.
+# Its token (API_TOKEN of infomaster) goes in .env as TABLO_UNIMASTER_TOKEN.
+infomaster:
+  url: http://infomaster:8081
+
+# Classes (§7.3): infomaster's tablo.ics. The link carries the feed's secret, so it is set in HA
+# or in config.local.yaml: http://infomaster:8081/calendar/<CALENDAR_SECRET>/tablo.ics
+ical:
+  poll_minutes: 10
+
 weather:
   latitude: 55.7558
   longitude: 37.6173
@@ -44,14 +54,6 @@ display:
 overlays:
   qr_duration_s: 20
   message_duration_s: 30
-
-news:
-  channels:
-    - {name: example_se, study: true}   # ПИ объявления
-    - example_news3
-    - example_news2
-    - example_news1
-  ttl_hours: 24
 
 wifi_networks:
   - {ssid: Home, password: change-me, security: WPA}

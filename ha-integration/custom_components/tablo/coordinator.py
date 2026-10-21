@@ -1,4 +1,4 @@
-"""Status and deadlines of the service, refreshed by `tablo_changed` events and a slow poll (§8.1)."""
+"""Status of the service, refreshed by `tablo_changed` events and a slow poll (§8.1)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ _LOGGER = logging.getLogger(__name__)
 @dataclass
 class TabloData:
     status: dict
-    deadlines: list[dict]
 
 
 class TabloCoordinator(DataUpdateCoordinator[TabloData]):
@@ -43,7 +42,7 @@ class TabloCoordinator(DataUpdateCoordinator[TabloData]):
             # After HA start or the service coming back, the service gets the config again (§8.1).
             if self.pushed is None:
                 await self.push_config()
-            return TabloData(await self.api.status(), await self.api.deadlines())
+            return TabloData(await self.api.status())
         except TabloAuthError as e:
             raise ConfigEntryAuthFailed(str(e)) from e
         except TabloError as e:

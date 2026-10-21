@@ -9,11 +9,10 @@ RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml
     && pip install --no-cache-dir -r /tmp/req.txt tzdata \
     && rm /tmp/req.txt
 
-# Run from the source tree: app.py finds assets/, emulator/ and pages/ next to tablo/.
+# Run from the source tree: app.py finds assets/ and emulator/ next to tablo/.
 COPY config.yaml .
 COPY assets assets
 COPY emulator emulator
-COPY pages pages
 COPY tablo tablo
 
 EXPOSE 8765

@@ -44,18 +44,6 @@ class TabloApi:
     async def status(self) -> dict:
         return await self._request("GET", "/api/status")
 
-    async def deadlines(self) -> list[dict]:
-        return (await self._request("GET", "/api/deadlines"))["items"]
-
-    async def add_deadline(self, title: str, due: str, category: str) -> None:
-        await self._request("POST", "/api/deadlines", {"title": title, "due": due, "category": category})
-
-    async def edit_deadline(self, uid: str, **changes: Any) -> None:
-        await self._request("PATCH", f"/api/deadlines/{uid}", changes)
-
-    async def delete_deadline(self, uid: str) -> None:
-        await self._request("DELETE", f"/api/deadlines/{uid}")
-
     async def show_qr(self, networks: list[str] | None, duration_s: int | None) -> None:
         await self._request("POST", "/api/overlay/qr", {"networks": networks, "duration_s": duration_s})
 

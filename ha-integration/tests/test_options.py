@@ -2,7 +2,7 @@
 
 from homeassistant.core import HomeAssistant
 
-from custom_components.tablo.const import OPT_CONFIG
+from custom_components.tablo.const import OPT_BOT, OPT_CONFIG
 
 
 async def _open(hass: HomeAssistant, entry, step: str):
@@ -60,36 +60,22 @@ async def test_button_errors_keep_the_form(hass: HomeAssistant, entry, hub):
 
 async def test_sources_form(hass: HomeAssistant, entry, hub):
     result = await _open(hass, entry, "sources")
-    values = {k.schema: k.description.get("suggested_value") for k in result["data_schema"].schema
-              if k.description}
-    assert "@example_se study" in values["channels"]
+    fields = {k.schema for k in result["data_schema"].schema}
+    assert fields == {"ical_url", "latitude", "longitude", "bot"}  # the rest is in infomaster's Mini App
     result = await hass.config_entries.options.async_configure(result["flow_id"], {
-        "ical_url": "https://ruz.hse.ru/x.ics",
-        "hseapp": False,
-        "student": "Ivanov Ivan",
-        "sheets": "https://docs.google.com/spreadsheets/d/abc/edit | Calc",
-        "window_days": 5,
-        "channels": "@example_se study\n@example_news3",
-        "ttl_hours": 12,
-        "mail": True,
-        "subjects": "Дискретная математика | Discrete Math | DM",
+        "ical_url": "http://infomaster:8081/calendar/s/tablo.ics",
         "latitude": 55.75,
         "longitude": 37.62,
+        "bot": "@example_bot",
     })
     assert result["type"] == "create_entry", result
-    c = hub.cfg
-    assert c.ical.url == "https://ruz.hse.ru/x.ics" and not c.hseapp.enabled
-    assert c.grades.student == "Ivanov Ivan" and c.grades.sheets[0].label == "Calc"
-    assert [ch.name for ch in c.news.channels] == ["example_se", "example_news3"] and c.news.ttl_hours == 12
-    assert hub.subjects.get("Дискретная математика").abbr == "DM"
-
-
-async def test_sources_bad_line(hass: HomeAssistant, entry):
-    result = await _open(hass, entry, "sources")
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {
-        "channels": "@a weekly", "window_days": 7, "ttl_hours": 24})
-    assert result["errors"] == {"base": "rejected"}
-    assert "line 1" in result["description_placeholders"]["error"]
+    assert hub.cfg.ical.url == "http://infomaster:8081/calendar/s/tablo.ics"
+    assert hub.cfg.weather.latitude == 55.75
+    assert entry.options[OPT_BOT] == "example_bot" and OPT_BOT not in entry.options[OPT_CONFIG]
+    # Another form keeps the bot.
+    result = await _open(hass, entry, "wifi")
+    await hass.config_entries.options.async_configure(result["flow_id"], {"networks": "Home | pw"})
+    assert entry.options[OPT_BOT] == "example_bot"
 
 
 async def test_wifi_home_screen(hass: HomeAssistant, entry, hub):

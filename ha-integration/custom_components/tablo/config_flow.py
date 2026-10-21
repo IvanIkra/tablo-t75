@@ -13,7 +13,6 @@ from homeassistant.data_entry_flow import section
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
-    BooleanSelector,
     DateSelector,
     EntitySelector,
     EntitySelectorConfig,
@@ -33,7 +32,8 @@ from homeassistant.helpers.template import Template
 
 from . import forms
 from .api import TabloApi, TabloAuthError, TabloError
-from .const import ACTIONS, CONF_API_TOKEN, CONF_URL, CONFIGURABLE_BUTTONS, DEFAULT_URL, DOMAIN, OPT_CONFIG, RUN_DOMAINS
+from .const import (ACTIONS, CONF_API_TOKEN, CONF_URL, CONFIGURABLE_BUTTONS, DEFAULT_URL, DOMAIN, OPT_BOT, OPT_CONFIG,
+                    RUN_DOMAINS)
 
 # Shown and saved when the icon field is left empty and the entity has no icon of its own (§8.2).
 DOMAIN_ICONS = {
@@ -83,6 +83,7 @@ def _clean(values: Mapping[str, Any]) -> dict[str, Any]:
 
 class TabloConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
+    MINOR_VERSION = 2  # 1.2: no source settings of infomaster in the config (async_migrate_entry)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -141,6 +142,7 @@ class TabloOptionsFlow(OptionsFlow):
 
     def __init__(self) -> None:
         self._cfg: dict | None = None
+        self._bot: str | None = None
         self._button: int | None = None
 
     @property
@@ -178,7 +180,8 @@ class TabloOptionsFlow(OptionsFlow):
         except forms.FormError as e:
             error = str(e)
         if error is None:
-            return self.async_create_entry(data={OPT_CONFIG: self.cfg})
+            bot = self._bot if self._bot is not None else self.config_entry.options.get(OPT_BOT, "")
+            return self.async_create_entry(data={OPT_CONFIG: self.cfg, OPT_BOT: bot})
         self._cfg = before
         return self.async_show_form(step_id=step_id, data_schema=self.add_suggested_values_to_schema(
             schema, user_input), errors={"base": "rejected"}, description_placeholders={"error": error})
@@ -301,59 +304,35 @@ class TabloOptionsFlow(OptionsFlow):
     # --- sources ---------------------------------------------------------------
 
     def _sources_schema(self) -> vol.Schema:
+        """Deadlines, news, grades and their settings are in infomaster's Mini App (infomaster decision 33)."""
         return vol.Schema({
             vol.Optional("ical_url"): URL,
-            vol.Optional("hseapp"): BooleanSelector(),
-            vol.Optional("student"): TextSelector(),
-            vol.Optional("sheets"): MULTILINE,
-            vol.Optional("window_days"): _number(1, 60, "d"),
-            vol.Optional("channels"): MULTILINE,
-            vol.Optional("ttl_hours"): _number(1, 168, "h"),
-            vol.Optional("mail"): BooleanSelector(),
-            vol.Optional("subjects"): MULTILINE,
             vol.Optional("latitude"): _number(-90, 90, "°", "any"),
             vol.Optional("longitude"): _number(-180, 180, "°", "any"),
+            vol.Optional("bot"): TextSelector(),
         })
 
     async def async_step_sources(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         schema = self._sources_schema()
         if user_input is not None:
             return await self._finish("sources", schema, user_input, self._apply_sources)
-        c = self.cfg
-        grades, news, weather = c.get("grades", {}), c.get("news", {}), c.get("weather", {})
+        weather = self.cfg.get("weather", {})
         values = {
-            "ical_url": c.get("ical", {}).get("url"),
-            "hseapp": c.get("hseapp", {}).get("enabled", True),
-            "student": grades.get("student"),
-            "sheets": forms.sheets_to_text(grades.get("sheets", [])),
-            "window_days": grades.get("window_days", 7),
-            "channels": forms.channels_to_text(news.get("channels", [])),
-            "ttl_hours": news.get("ttl_hours", 24),
-            "mail": c.get("mail", {}).get("enabled", True),
-            "subjects": forms.subjects_to_text(c.get("subjects", [])),
+            "ical_url": self.cfg.get("ical", {}).get("url"),
             "latitude": weather.get("latitude"),
             "longitude": weather.get("longitude"),
+            "bot": self.config_entry.options.get(OPT_BOT),
         }
         return self.async_show_form(step_id="sources", data_schema=self.add_suggested_values_to_schema(
             schema, _clean(values)))
 
     def _apply_sources(self, data: Mapping[str, Any]) -> None:
-        c = self.cfg
-        c.setdefault("ical", {})["url"] = data.get("ical_url", "").strip()
-        c.setdefault("hseapp", {})["enabled"] = bool(data.get("hseapp", False))
-        grades = c.setdefault("grades", {})
-        grades["student"] = data.get("student", "").strip()
-        grades["sheets"] = forms.sheets_from_text(data.get("sheets", ""))
-        grades["window_days"] = int(data.get("window_days", 7))
-        news = c.setdefault("news", {})
-        news["channels"] = forms.channels_from_text(data.get("channels", ""))
-        news["ttl_hours"] = int(data.get("ttl_hours", 24))
-        c.setdefault("mail", {})["enabled"] = bool(data.get("mail", False))
-        c["subjects"] = forms.subjects_from_text(data.get("subjects", ""))
-        weather = c.setdefault("weather", {})
+        self.cfg.setdefault("ical", {})["url"] = data.get("ical_url", "").strip()
+        weather = self.cfg.setdefault("weather", {})
         for key in ("latitude", "longitude"):
             if data.get(key) is not None:
                 weather[key] = float(data[key])
+        self._bot = data.get("bot", "").strip().lstrip("@")
 
     # --- home ------------------------------------------------------------------
 

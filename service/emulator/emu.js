@@ -13,6 +13,7 @@ const MDI = {
   wifi: 0xf0925, wifiOff: 0xf092e,
   cloud: 0xf0163, cloudOff: 0xf0164,
   home: 0xf06a1, homeOff: 0xf1a47,
+  dataOff: 0xf1640,  // database-off: infomaster is not answering, the blocks show saved data
 };
 
 const DEFAULT_CONFIG = {
@@ -27,7 +28,7 @@ const DEFAULT_CONFIG = {
 
 const st = {
   cfg: DEFAULT_CONFIG,
-  health: { ha: false, synced_at: null },
+  health: { ha: false, data: true, synced_at: null },
   ws: null,
   connected: false,
   offlineSince: Date.now(),
@@ -248,12 +249,15 @@ function drawFirmwareZones(buf) {
     return;
   }
   // Online: icons only; the last sync time is on the diagnostics screen (long press on 8).
+  // The infomaster icon comes only while its data is old (health.data false, §3.3).
   drawZone(buf, zs, (c) => {
     c.textAlign = "right";
     let x = sx + sw - 4;
     c.font = "17px MDIEmu";
-    for (const code of [st.connected && st.health.ha ? MDI.home : MDI.homeOff,
-                        st.connected ? MDI.cloud : MDI.cloudOff, MDI.wifi]) {
+    const icons = [st.connected && st.health.ha ? MDI.home : MDI.homeOff,
+                   st.connected ? MDI.cloud : MDI.cloudOff, MDI.wifi];
+    if (st.connected && st.health.data === false) icons.push(MDI.dataOff);  // leftmost
+    for (const code of icons) {
       const g = String.fromCodePoint(code);
       c.fillText(g, x, sy + 19);
       x -= c.measureText(g).width + 5;
@@ -262,24 +266,7 @@ function drawFirmwareZones(buf) {
 }
 
 // ---------- diagnostics (long press on 8, §4) ----------
-const fmtTokens = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
-const fmtCost = (usd) => usd == null ? "$?" : `$${usd.toFixed(usd < 0.01 ? 4 : usd < 1 ? 3 : 2)}`;
-const fmtTotals = (t) => t ? `${t.runs} requests · ${fmtTokens(t.tokens)} tokens · ${fmtCost(t.cost_usd)}` : "—";
 const hhmm = (ms) => new Date(ms).toLocaleTimeString("en-GB", { timeZone: st.cfg.tz_name, hour: "2-digit", minute: "2-digit" });
-
-// The LLM rows from health.llm (§6.6); "LLM failed" only while the calls keep failing.
-function llmRows(llm) {
-  if (!llm) return [["LLM", "unknown (service offline)"]];
-  const rows = [["LLM model", llm.available ? llm.model : `${llm.model} · no API key`],
-                ["LLM today", fmtTotals(llm.today)],
-                ["LLM 30 days", fmtTotals(llm.days30)]];
-  const last = llm.last;
-  rows.push(["Last LLM", last
-    ? `${last.at} · ${last.task} · ${last.ok ? `ok · ${fmtTokens(last.tokens)} tokens · ${fmtCost(last.cost_usd)}` : "failed"} · ${last.duration_s.toFixed(1)} s`
-    : "never"]);
-  if (llm.failure) rows.push(["LLM failed", `${llm.failure.at} · ${llm.failure.task} · ${llm.failure.error || "error"}`]);
-  return rows;
-}
 
 function drawDiag(buf) {
   const up = Math.floor((Date.now() - st.startedAt) / 1000);
@@ -291,11 +278,10 @@ function drawDiag(buf) {
     ["Free heap", "n/a (emulator)"],
     ["Service", st.connected ? "connected" : `offline since ${hhmm(st.offlineSince)}`],
     ["Home Assistant", st.connected ? (st.health.ha ? "ok" : "down") : "unknown"],
+    ["infomaster", st.connected ? (st.health.data === false ? "down · saved data" : "ok") : "unknown"],
     ["Last frame", st.lastFrameAt ? `${hhmm(st.lastFrameAt)} · id ${st.baseId}` : "none"],
     ["Last sync", st.health.synced_at || "never"],
     ["Partial updates", String(st.partials)],
-    null,  // gap before the LLM block
-    ...llmRows(st.health.llm),
   ];
   drawZone(buf, [0, 0, W, H], (c) => {
     c.font = "700 30px InterEmu"; c.fillText("Diagnostics", 40, 48);

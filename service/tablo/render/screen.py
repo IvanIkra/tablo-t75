@@ -1,7 +1,6 @@
 """Main screen layout (§2). All coordinates for the base frame live here."""
 
 import datetime as dt
-import functools
 
 from .. import protocol
 from ..model import ScreenModel
@@ -135,45 +134,11 @@ def _due_label(due: dt.date, today: dt.date) -> str:
 
 
 DEADLINE_TEXT_X = PAD + 40  # after the category and source icons
-DUE_SAMPLES = ("tomorrow", "overdue", "today", "Sep 30")
-
-
-@functools.cache
-def deadline_title_width() -> float:
-    """Room for a deadline title next to the widest due label: the budget Haiku writes for (§7.7)."""
-    c = Canvas()
-    f = fonts.inter(16, BODY)
-    right = max(c.width(s, f) for s in DUE_SAMPLES)
-    return DEADLINES[2] - DEADLINE_TEXT_X - PAD - right - 8
-
-
-def deadline_title_fits(title: str) -> bool:
-    return Canvas().width(title, fonts.inter(16, BODY)) <= deadline_title_width()
-
-
-OVERDUE_DAYS = 3
-# Mail and Telegram cannot tell that the work was handed in, so their deadlines leave sooner (§7.2).
-OVERDUE_DAYS_BY_SOURCE = {"mail": 1, "tg": 1}
-
-
-def _overdue_days(d) -> int:
-    return OVERDUE_DAYS_BY_SOURCE.get(d.source, OVERDUE_DAYS)
-
-
-def visible_deadlines(deadlines, today: dt.date) -> list:
-    """Upcoming by date first, then overdue ones for a few days after the due date (§7.2).
-
-    The order of the block, and of the to-do lists in HA (§8.4).
-    """
-    upcoming = sorted((d for d in deadlines if d.due >= today), key=lambda d: d.due)
-    overdue = sorted((d for d in deadlines if today - dt.timedelta(days=_overdue_days(d)) <= d.due < today),
-                     key=lambda d: d.due, reverse=True)
-    return upcoming + overdue
 
 
 def _deadlines(c: Canvas, m: ScreenModel) -> None:
     today = m.today
-    items = visible_deadlines(m.deadlines, today)
+    items = m.deadlines  # picked and ordered by infomaster: upcoming by date, then overdue (§7.2)
     first = 1 if m.deadlines_problem else 0
     room = _rows(DEADLINES) - first
     more = len(items) - room
@@ -215,19 +180,7 @@ TOP_RANK = 5  # importance + 1 for study
 
 
 def news_text_width() -> float:
-    """Width of a news line: the budget Haiku writes for (§7.7)."""
     return NEWS[2] - NEWS_TEXT_X - PAD
-
-
-def news_full_fits(text: str) -> bool:
-    """The long version wraps into at most 2 lines without cutting a word."""
-    c, f = Canvas(), fonts.inter(16, BODY)
-    lines = c.wrap(text, f, news_text_width(), 99)
-    return len(lines) <= 2 and " ".join(lines) == " ".join(text.split())
-
-
-def news_short_fits(text: str) -> bool:
-    return Canvas().width(text, fonts.inter(16, BODY)) <= news_text_width()
 
 
 def layout_news(items, c: Canvas | None = None) -> list[tuple[object, list[str]]]:
@@ -275,7 +228,7 @@ def _news(c: Canvas, m: ScreenModel) -> None:
     f = fonts.inter(16, BODY)
     cy = y + HEADER_H + 8
     if not m.news:
-        c.text((x + PAD, cy), "no news", f)
+        c.text((x + PAD, cy), m.news_problem or "no news", f)
     for item, lines in layout_news(m.news, c):
         c.icon(SOURCE_ICONS.get(item.source), x + PAD + 7, cy + 9, 15)
         for j, line in enumerate(lines):
@@ -284,20 +237,6 @@ def _news(c: Canvas, m: ScreenModel) -> None:
 
 
 CLASS_TEXT_X = PAD + 52  # after the start time
-ROOM_SAMPLES = ("online", "G406", "D208")
-
-
-@functools.cache
-def class_subject_width() -> float:
-    """Room for a course title next to a typical room: the budget of the subject dictionary (§7.3)."""
-    c = Canvas()
-    f = fonts.inter(16, BODY)
-    right = max(c.width(s, f) for s in ROOM_SAMPLES)
-    return CLASSES[2] - CLASS_TEXT_X - PAD - right - 8
-
-
-def class_subject_fits(title: str) -> bool:
-    return Canvas().width(title, fonts.inter(16, BODY)) <= class_subject_width()
 
 
 def _classes(c: Canvas, m: ScreenModel) -> None:

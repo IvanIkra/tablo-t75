@@ -3,6 +3,5 @@
 !config.yaml
 !assets
 !emulator
-!pages
 !tablo
 **/__pycache__

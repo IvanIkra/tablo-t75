@@ -1,11 +1,10 @@
-"""Classes from the RUZ timetable in iCal (tablo-software.md §7.3).
+"""Classes from infomaster's tablo.ics feed (tablo-software.md §7.3).
 
-The feed covers about five weeks and answers 304 to a matching ETag, so an
-hourly poll costs almost nothing. Events keep the course name as given (Russian
-with "(рус)" or long English); the subject dictionary turns it into a short
-English title when the screen is built, so an edit of the dictionary shows at
-once. "Ongoing interim assessment" (Текущий рубежный контроль) events also go to
-Deadlines as Midterm (§7.2).
+The feed has the RUZ classes, consultations and events from the chats, with
+English names already (SUMMARY is shown as it is). Optional events (STATUS:TENTATIVE
+or X-UNI-OPTIONAL:TRUE) are shown with a mark, as are classes moved ("Moved from …"
+in DESCRIPTION) or cancelled. Interim assessments reach Deadlines from infomaster's
+API, not from here.
 """
 
 import asyncio
@@ -20,19 +19,17 @@ import aiohttp
 import icalendar
 
 from ..config import Config
-from ..llm import LLMError
-from ..model import ClassItem, Deadline
+from ..model import ClassItem
 from ..store import Store
 from . import nap
-from ..subjects import Subjects, clean
 
 log = logging.getLogger(__name__)
 
 EVENTS_KEY = "ical.events"
 STALE_AFTER = dt.timedelta(hours=12)  # failing longer than this shows up on screen
-MAX_CLASSES = 3
-MIDTERM_KINDS = ("рубежный контроль", "interim assessment")
+MAX_CLASSES = 5  # as many rows as the Classes block has
 LINK = re.compile(r"https?://")
+MOVED = "Moved from"  # infomaster's note under the type: the time is already the new one
 
 
 @dataclass(frozen=True)
@@ -40,23 +37,19 @@ class Event:
     uid: str
     start: dt.datetime  # local time, naive
     end: dt.datetime
-    subject: str  # course name as the feed gives it, without "(рус)"
+    subject: str  # SUMMARY: the English name from infomaster's dictionary
     room: str  # "R609", "online" or ""
-    kind: str  # first line of DESCRIPTION: "Lecture", "Seminar", "Ongoing interim assessment"
-
-    @property
-    def midterm(self) -> bool:
-        kind = self.kind.casefold()
-        return any(k in kind for k in MIDTERM_KINDS)
+    kind: str  # first line of DESCRIPTION: "Lecture", "Seminar", "Consultation", "Event"
+    mark: str | None = None  # "cancelled" | "moved" | "optional", shown in place of the room
 
     def to_json(self) -> dict:
         return {"uid": self.uid, "start": self.start.isoformat(), "end": self.end.isoformat(),
-                "subject": self.subject, "room": self.room, "kind": self.kind}
+                "subject": self.subject, "room": self.room, "kind": self.kind, "mark": self.mark}
 
     @classmethod
     def from_json(cls, d: dict) -> "Event":
         return cls(d["uid"], dt.datetime.fromisoformat(d["start"]), dt.datetime.fromisoformat(d["end"]),
-                   d["subject"], d["room"], d["kind"])
+                   d["subject"], d["room"], d["kind"], d.get("mark"))
 
 
 def room(location: str, description: str, url: str) -> str:
@@ -77,12 +70,22 @@ def _local(value, tz: ZoneInfo) -> dt.datetime:
     return value
 
 
+def mark(ev, description: str) -> str | None:
+    """Cancelled first, then moved, then optional: one mark fits in place of the room."""
+    status = str(ev.get("STATUS", "")).upper()
+    if status == "CANCELLED":
+        return "cancelled"
+    if any(line.strip().startswith(MOVED) for line in description.splitlines()[1:]):
+        return "moved"
+    if status == "TENTATIVE" or str(ev.get("X-UNI-OPTIONAL", "")).upper() == "TRUE":
+        return "optional"
+    return None
+
+
 def parse(text: str | bytes, tz: ZoneInfo) -> list[Event]:
     events = []
     for ev in icalendar.Calendar.from_ical(text).walk("VEVENT"):
-        if str(ev.get("STATUS", "")).upper() == "CANCELLED":
-            continue
-        subject = clean(ev.get("SUMMARY"))
+        subject = " ".join(str(ev.get("SUMMARY", "")).split())
         if not subject or ev.get("DTSTART") is None:
             continue
         start = _local(ev.decoded("DTSTART"), tz)
@@ -90,7 +93,7 @@ def parse(text: str | bytes, tz: ZoneInfo) -> list[Event]:
         description = str(ev.get("DESCRIPTION", ""))
         kind = description.split("\n", 1)[0].strip()
         where = room(str(ev.get("LOCATION", "")), description, str(ev.get("URL", "")))
-        events.append(Event(str(ev.get("UID", "")), start, end, subject, where, kind))
+        events.append(Event(str(ev.get("UID", "")), start, end, subject, where, kind, mark(ev, description)))
     events.sort(key=lambda e: (e.start, e.subject))
     return events
 
@@ -120,14 +123,12 @@ class Status:
     ok_at: str | None = None
     error: str | None = None
     events: int = 0
-    subjects_error: str | None = None
 
 
 @dataclass
 class IcalSource:
     get_cfg: Callable[[], Config]
     store: Store
-    subjects: Subjects
     on_change: Callable[[], None]
     now: Callable[[], dt.datetime]
     status: Status = field(default_factory=Status)
@@ -145,22 +146,9 @@ class IcalSource:
         saved = self.store.get_json(EVENTS_KEY) or {}
         return [Event.from_json(d) for d in saved.get("events", [])]
 
-    def _title(self, name: str) -> str:
-        s = self.subjects.get(name)
-        return s.title if s else name
-
     def classes(self) -> tuple[tuple[ClassItem, ...], str]:
         items, label = pick(self.events(), self.now())
-        return tuple(ClassItem(e.start.time(), self._title(e.subject), e.room) for e in items), label
-
-    def deadlines(self) -> tuple[Deadline, ...]:
-        result = []
-        for e in self.events():
-            if e.midterm:
-                s = self.subjects.get(e.subject)
-                result.append(Deadline(f"{s.abbr if s else e.subject} Midterm", e.start.date(), "study", "ical",
-                                       course=s.abbr if s else None))
-        return tuple(result)
+        return tuple(ClassItem(e.start.time(), e.subject, e.room, e.mark) for e in items), label
 
     def problem(self) -> str | None:
         if not self.cfg.url:
@@ -189,14 +177,6 @@ class IcalSource:
             log.warning("timetable failed: %s", self.status.error)
             self.on_change()
             return False
-
-        # Every poll, not only on a new feed: names left untranslated while Haiku was down get another try.
-        try:
-            await self.subjects.resolve(e.subject for e in events)
-            self.status.subjects_error = None
-        except LLMError as e:
-            self.status.subjects_error = str(e)
-            log.warning("subject names: %s; showing the names from the feed", e)
 
         new = [e.to_json() for e in events]
         changed = new != saved.get("events")

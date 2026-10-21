@@ -57,7 +57,7 @@ def classes(now: dt.datetime) -> tuple[tuple[ClassItem, ...], str]:
     items = (
         ClassItem(dt.time(9, 30), "Calculus", "D208"),
         ClassItem(dt.time(11, 10), "Algebra", "R401", mark="moved"),
-        ClassItem(dt.time(13, 0), "Intro to Prog", "online"),
+        ClassItem(dt.time(13, 0), "Career talk", "online", mark="optional"),
     )
     label = "today" if now.hour < 15 else "tomorrow"
     return items, label

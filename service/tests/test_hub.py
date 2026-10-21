@@ -122,7 +122,7 @@ async def test_demo_switches_turn_off_fake_ha_and_persist(client, tmp_path):
     assert resp.status == 200 and (await resp.json())["ha"] is False
     msgs = [await _recv(ws) for _ in range(2)]
     health = next(m for m in msgs if isinstance(m, dict))
-    assert (health["type"], health["ha"]) == ("health", False) and "llm" in health
+    assert (health["type"], health["ha"], health["data"]) == ("health", False, False) and "llm" not in health
     assert json.loads((tmp_path / "demo.json").read_text())["news"] is False
 
     await ws.send_json({"type": "button", "id": 4, "press": "short", "seq": 2})

@@ -2,11 +2,9 @@
 
 import asyncio
 import contextlib
-import datetime as dt
 import io
 import logging
 from pathlib import Path
-from urllib.parse import urlencode
 
 import yaml
 from aiohttp import web
@@ -23,7 +21,6 @@ ROOT = Path(__file__).resolve().parents[1]
 EMULATOR_DIR = ROOT / "emulator"
 FONTS_DIR = ROOT / "assets" / "fonts"
 MDI_DIR = ROOT / "assets" / "mdi"
-PAGES_DIR = ROOT / "pages"
 
 HUB = web.AppKey("hub", Hub)
 
@@ -62,16 +59,6 @@ async def frame_png(request: web.Request) -> web.Response:
     buf = io.BytesIO()
     unpack(frame.payload).save(buf, "PNG")
     return web.Response(body=buf.getvalue(), content_type="image/png", headers={"Cache-Control": "no-store"})
-
-
-async def llm_runs(request: web.Request) -> web.Response:
-    """Every Haiku call, newest first (§6.6): ?limit=100&task=news."""
-    _require_api_token(request)
-    try:
-        limit = min(max(int(request.query.get("limit", "100")), 1), 10000)
-    except ValueError:
-        raise web.HTTPBadRequest(text="limit must be a number")
-    return web.json_response(_hub(request).store.llm_runs(limit, request.query.get("task") or None))
 
 
 async def overlay_qr(request: web.Request) -> web.Response:
@@ -114,67 +101,6 @@ async def get_config(request: web.Request) -> web.Response:
     return web.json_response(config_mod.to_dict(_hub(request).cfg))
 
 
-# --- to-do lists in HA (§8.4) -------------------------------------------------
-
-def _date(value) -> dt.date:
-    try:
-        return dt.date.fromisoformat(str(value))
-    except ValueError:
-        raise web.HTTPBadRequest(text="due must be a date like 2026-10-20")
-
-
-async def list_deadlines(request: web.Request) -> web.Response:
-    _require_api_token(request)
-    return web.json_response({"items": _hub(request).todo_items()})
-
-
-async def add_deadline(request: web.Request) -> web.Response:
-    _require_api_token(request)
-    data = await _json(request)
-    hub = _hub(request)
-    try:
-        d = hub.todo.add(str(data.get("title", "")), _date(data.get("due")), str(data.get("category", "")))
-    except ValueError as e:
-        raise web.HTTPBadRequest(text=str(e))
-    await hub.deadlines_changed()
-    return web.json_response({"uid": d.key})
-
-
-def _deadline(request: web.Request):
-    d = _hub(request).find_deadline(request.match_info["uid"])
-    if d is None:
-        raise web.HTTPNotFound(text="no such deadline on the screen")
-    return d
-
-
-async def edit_deadline(request: web.Request) -> web.Response:
-    """{done: true} hides it; {title, due} changes it (a deadline from a source becomes an own copy)."""
-    _require_api_token(request)
-    data = await _json(request)
-    hub = _hub(request)
-    d = _deadline(request)
-    if data.get("done"):
-        hub.todo.remove(d)
-        await hub.deadlines_changed()
-        return web.json_response({"uid": None})
-    title = data.get("title")
-    due = _date(data["due"]) if data.get("due") else None
-    try:
-        new = hub.todo.edit(d, None if title is None else str(title), due)
-    except ValueError as e:
-        raise web.HTTPBadRequest(text=str(e))
-    await hub.deadlines_changed()
-    return web.json_response({"uid": new.key})
-
-
-async def delete_deadline(request: web.Request) -> web.Response:
-    _require_api_token(request)
-    hub = _hub(request)
-    hub.todo.remove(_deadline(request))
-    await hub.deadlines_changed()
-    return web.json_response({"ok": True})
-
-
 async def put_config(request: web.Request) -> web.Response:
     _require_api_token(request)
     data = await _json(request)
@@ -185,6 +111,7 @@ async def put_config(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text=f"bad config: {e}")
     # Secrets and the listening address are not set through the API.
     cfg.device_token, cfg.api_token = hub.cfg.device_token, hub.cfg.api_token
+    cfg.infomaster_token = hub.cfg.infomaster_token
     cfg.host, cfg.port = hub.cfg.host, hub.cfg.port
     cfg.demo = hub.cfg.demo  # demo switches are a runtime choice, not part of the pushed config
     cfg.ha = hub.cfg.ha  # the service's own connection to HA is set up once, at start
@@ -211,38 +138,6 @@ async def put_demo(request: web.Request) -> web.Response:
     except ConfigError as e:
         raise web.HTTPBadRequest(text=str(e))
     return web.json_response(demo)
-
-
-async def hseapp_page(request: web.Request) -> web.FileResponse:
-    return web.FileResponse(PAGES_DIR / "hseapp.html", headers={"Cache-Control": "no-store"})
-
-
-async def hseapp_login_url(request: web.Request) -> web.Response:
-    _require_api_token(request)
-    hub = _hub(request)
-    # HSE's client accepts any return address: the browser comes straight back here.
-    callback = f"{request.scheme}://{request.host}/hseapp/callback"
-    return web.json_response({"url": hub.hseapp.auth.login_url(callback), "logged_in": hub.hseapp.auth.logged_in})
-
-
-async def hseapp_login(request: web.Request) -> web.Response:
-    """The return address pasted by hand, when the browser could not reach the service."""
-    _require_api_token(request)
-    data = await _json(request)
-    try:
-        await _hub(request).hseapp.login(str(data.get("url", "")))
-    except ValueError as e:
-        raise web.HTTPBadRequest(text=str(e))
-    return web.json_response({"ok": True})
-
-
-async def hseapp_callback(request: web.Request) -> web.Response:
-    """No api token here: only a browser that started the login knows its state (PKCE)."""
-    try:
-        await _hub(request).hseapp.login(str(request.url))
-    except ValueError as e:
-        raise web.HTTPFound("/hseapp?" + urlencode({"error": str(e)}))
-    raise web.HTTPFound("/hseapp?login=ok")
 
 
 async def emulator_index(request: web.Request) -> web.Response:
@@ -284,18 +179,9 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     app.router.add_post("/api/refresh", refresh)
     app.router.add_get("/api/config", get_config)
     app.router.add_put("/api/config", put_config)
-    app.router.add_get("/api/deadlines", list_deadlines)
-    app.router.add_post("/api/deadlines", add_deadline)
-    app.router.add_patch("/api/deadlines/{uid}", edit_deadline)
-    app.router.add_delete("/api/deadlines/{uid}", delete_deadline)
-    app.router.add_get("/api/llm/runs", llm_runs)
     app.router.add_get("/api/demo", get_demo)
     app.router.add_put("/api/demo", put_demo)
     app.router.add_get("/frame.png", frame_png)
-    app.router.add_get("/hseapp", hseapp_page)
-    app.router.add_get("/api/hseapp/login", hseapp_login_url)
-    app.router.add_post("/api/hseapp/login", hseapp_login)
-    app.router.add_get("/hseapp/callback", hseapp_callback)
     app.router.add_get("/", root)
     app.router.add_get("/emu", emulator_index)
     app.router.add_static("/emu/static", EMULATOR_DIR)
@@ -312,8 +198,7 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
 
     if periodic:
         async def background(app: web.Application):
-            runs = [hub.run_periodic(), hub.grades.run(), hub.university.examplen(), hub.ical.run(),
-                    hub.telegram.run(), hub.mail.run(), hub.news.run(), hub.weather.run()]
+            runs = [hub.run_periodic(), hub.infomaster.run(), hub.ical.run(), hub.weather.run()]
             if hub.real_ha:
                 runs.append(hub.real_ha.run())
             tasks = [asyncio.create_task(c) for c in runs]

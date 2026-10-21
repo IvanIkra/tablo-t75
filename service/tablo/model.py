@@ -27,9 +27,7 @@ class Deadline:
     title: str
     due: dt.date
     category: str  # "study" | "personal"
-    source: str  # "hseapp" | "mail" | "tg" | "ical" | "ha"
-    course: str | None = None  # abbreviation from the subject dictionary, for merging duplicates
-    key: str = field(default="", compare=False)  # own deadlines from HA: "ha-<id>"; others are keyed by content
+    source: str  # "hseapp" | "mail" | "tg" | "ical" | "ha" (own, from infomaster's Mini App)
 
 
 @dataclass(frozen=True)
@@ -57,7 +55,7 @@ class ClassItem:
     start: dt.time
     subject: str
     room: str
-    mark: str | None = None  # "moved" | "cancelled"
+    mark: str | None = None  # "moved" | "cancelled" | "optional": shown in place of the room
 
 
 @dataclass(frozen=True)
@@ -87,6 +85,7 @@ class ScreenModel:
     grades: tuple[Grade, ...] = ()
     grades_problem: str | None = None  # shown instead of "no new grades" when the source is failing
     news: tuple[NewsItem, ...] = ()
+    news_problem: str | None = None  # shown instead of "no news" when infomaster cannot read the chats
     classes: tuple[ClassItem, ...] = ()
     classes_label: str = ""
     classes_problem: str | None = None  # shown instead of "no classes" when the calendar is failing

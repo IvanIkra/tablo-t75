@@ -1,8 +1,8 @@
 # Tablo service
 
-Сервис Tablo T75: собирает данные, рисует кадр 800×480 в 1 бит, держит WebSocket с платой. Проект и протокол — в [`../tablo-software.md`](../tablo-software.md).
+Сервис Tablo T75: берёт данные у infomaster и Open-Meteo, рисует кадр 800×480 в 1 бит, держит WebSocket с платой. Проект и протокол — в [`../tablo-software.md`](../tablo-software.md).
 
-**Этап 1 (готов):** протокол и формат кадра, рендер на демо-данных, кнопки из `config.yaml` через фейковый Home Assistant в памяти, Wi-Fi QR и сообщения, эмулятор платы в браузере. Настоящих источников данных пока нет: погода, дедлайны, оценки, новости и пары — заглушки из `tablo/stub.py`.
+Демо-данные блоков (`tablo/stub.py`) включаются переключателями в эмуляторе; без них блоки показывают только настоящие данные.
 
 ## Запуск
 
@@ -24,19 +24,14 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 
 ## Источники
 
-Личные настройки — в `config.local.yaml` (не в git, накладывается поверх `config.yaml`), ключ Anthropic — в `.env`. Состояние — в `data/tablo.db`.
+Личные настройки — в `config.local.yaml` (не в git, накладывается поверх `config.yaml`), секреты — в `.env`. Состояние — в `data/tablo.db`.
 
-- **Оценки** (этап 2): секция `grades` — ФИО и ссылки на таблицы.
-- **Дедлайны the university app** (этап 3): нужен вход приложения. Один раз засеять из сохранённого ответа Keycloak:
+- **Дедлайны, новости, оценки** — из infomaster (§7.1): `infomaster.url` (по умолчанию `http://infomaster:8081`, docker-сеть `infomaster`), токен — `API_TOKEN` infomaster в `.env` как `TABLO_UNIMASTER_TOKEN`. Настройки этих блоков (the university app, таблицы, чаты, почта, словарь, свои дедлайны) — в Mini App infomaster.
+- **Пары** — лента infomaster `http://infomaster:8081/calendar/<CALENDAR_SECRET>/tablo.ics`: `ical.url` в `config.local.yaml` или в форме «Источники» HA.
+- **Погода**: Open-Meteo без ключа, секция `weather`.
+- **Дом**: долгоживущий токен HA (Профиль → Безопасность → «Долгоживущие токены доступа») в `.env` как `TABLO_HA_TOKEN`, адрес — `ha.url`. Блок Home — строки-шаблоны HA в секции `home.rows` (§8.3), правятся в форме интеграции; имена сущностей Moonraker сверить после установки интеграции. В эмуляторе снять флажок *fake HA*, чтобы видеть настоящий дом. Скрипты для долгих нажатий — [`../ha-integration/scripts/tablo.yaml`](../ha-integration/scripts/tablo.yaml), вставить в `scripts.yaml` HA.
 
-  ```bash
-  .venv/bin/python -m tablo --import-hseapp-token ../research/hseapp/captures/refresh-response.json
-  ```
-
-  Дальше сервис сам обновляет токен. Если на экране *HSE login needed* — войти заново на <http://localhost:8765/hseapp>.
-- **Пары** (этап 4): ссылка РУЗ в `.env` как `TABLO_ICAL_URL`. Английские названия предметов — словарь в таблице `subjects`, новые заполняет Haiku.
-- **Погода** (этап 6): Open-Meteo без ключа, секция `weather`.
-- **Дом** (этап 6): долгоживущий токен HA (Профиль → Безопасность → «Долгоживущие токены доступа») в `.env` как `TABLO_HA_TOKEN`, адрес — `ha.url`. Блок Home — строки-шаблоны HA в секции `home.rows` (§8.3), правятся в форме интеграции; имена сущностей Moonraker сверить после установки интеграции. В эмуляторе снять флажок *fake HA*, чтобы видеть настоящий дом. Скрипты для долгих нажатий — [`../ha-integration/scripts/tablo.yaml`](../ha-integration/scripts/tablo.yaml), вставить в `scripts.yaml` HA.
+На Маке infomaster по имени `infomaster` не виден: для эмулятора с живыми данными `infomaster.url` и `ical.url` в `config.local.yaml` указывают на адрес, где его API доступен (например, через `ssh -L`).
 
 ## Что где
 
@@ -49,11 +44,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 | `tablo/model.py`, `tablo/builder.py` | Модель экрана и её сборка из источников |
 | `tablo/render/` | Вёрстка (Pillow), пиксельные значки (`pixels.py`) и шрифты (`pixelfont.py`), QR и сообщения, упаковка в 1 бит |
 | `tablo/ha.py` | Клиент HA по WebSocket (состояния, `call_service`, `tablo_button`) и фейковый HA в памяти: 5 светильников, VPN-точка, датчик, принтер; Tuya отвечает с задержкой 2 с |
-| `tablo/sources/` | Источники: `grades.py` (Google Таблицы), `hseapp.py` (дедлайны the university app), `ical.py` (пары РУЗ и *Midterm*), `weather.py` (Open-Meteo), `telegram.py`, `mail.py` (новости) |
-| `tablo/todo.py` | Дедлайны как списки дел HA: свои пункты и скрытые (§8.4) |
-| `tablo/subjects.py` | Словарь предметов: короткое английское название и сокращение, общий для пар и дедлайнов |
-| `tablo/llm.py`, `tablo/store.py` | Haiku со структурированным ответом; SQLite |
-| `pages/hseapp.html` | Страница повторного входа в the university app |
+| `tablo/sources/` | Источники: `infomaster.py` (дедлайны, новости, оценки и статус из infomaster), `ical.py` (пары из `tablo.ics`), `weather.py` (Open-Meteo) |
+| `tablo/store.py` | SQLite: последние удачные ответы источников |
 | `tablo/stub.py` | Демо-данные блоков |
 | `emulator/` | Эмулятор платы: та же логика, что будет в прошивке |
 | `assets/` | Шрифты Inter (OFL) и Material Design Icons (Pictogrammers Free License); `fonts/pixel/` — пиксельные версии Inter для экрана, правятся руками |
