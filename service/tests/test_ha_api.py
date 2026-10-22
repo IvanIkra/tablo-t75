@@ -27,7 +27,7 @@ def _uni_status(hub, **hseapp):
 
 
 def test_to_dict_round_trip_without_secrets(monkeypatch):
-    monkeypatch.setenv("TABLO_UNIMASTER_TOKEN", "secret")
+    monkeypatch.setenv("TABLO_INFOMASTER_TOKEN", "secret")
     cfg = config.load(CFG_PATH, local=False)
     d = config.to_dict(cfg)
     assert not {"server", "device", "api", "ha", "demo", "infomaster_token"} & set(d)

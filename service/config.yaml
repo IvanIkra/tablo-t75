@@ -17,7 +17,7 @@ ha:
   url: http://192.168.1.50:8123
 
 # Deadlines, news and grades (§7.2): infomaster's internal API, reached in its docker network.
-# Its token (API_TOKEN of infomaster) goes in .env as TABLO_UNIMASTER_TOKEN.
+# Its token (API_TOKEN of infomaster) goes in .env as TABLO_INFOMASTER_TOKEN.
 infomaster:
   url: http://infomaster:8081
 

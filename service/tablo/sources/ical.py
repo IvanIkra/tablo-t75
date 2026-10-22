@@ -2,7 +2,7 @@
 
 The feed has the RUZ classes, consultations and events from the chats, with
 English names already (SUMMARY is shown as it is). Optional events (STATUS:TENTATIVE
-or X-UNI-OPTIONAL:TRUE) are shown with a mark, as are classes moved ("Moved from …"
+or X-INFOMASTER-OPTIONAL:TRUE) are shown with a mark, as are classes moved ("Moved from …"
 in DESCRIPTION) or cancelled. Interim assessments reach Deadlines from infomaster's
 API, not from here.
 """
@@ -77,7 +77,7 @@ def mark(ev, description: str) -> str | None:
         return "cancelled"
     if any(line.strip().startswith(MOVED) for line in description.splitlines()[1:]):
         return "moved"
-    if status == "TENTATIVE" or str(ev.get("X-UNI-OPTIONAL", "")).upper() == "TRUE":
+    if status == "TENTATIVE" or str(ev.get("X-INFOMASTER-OPTIONAL", "")).upper() == "TRUE":
         return "optional"
     return None
 

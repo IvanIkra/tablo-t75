@@ -43,7 +43,7 @@ def test_optional_by_either_field_and_moved_wins():
         return ical.parse(body, MSK)[0].mark
 
     assert one("STATUS:TENTATIVE") == "optional"
-    assert one("X-UNI-OPTIONAL:TRUE") == "optional"
+    assert one("X-INFOMASTER-OPTIONAL:TRUE") == "optional"
     assert one("STATUS:CONFIRMED") is None
     assert one("STATUS:TENTATIVE", "DESCRIPTION:Event\\nMoved from Tue Oct 20 13:00") == "moved"
     assert one("DESCRIPTION:Moved from the chat") is None  # only a note under the type counts

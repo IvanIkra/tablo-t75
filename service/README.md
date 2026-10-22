@@ -1,5 +1,7 @@
 # Tablo service
 
+> infomaster переименован в infomaster; новые имена (токен, секция конфига, адрес, сеть) — в [`../tablo-software.md`](../tablo-software.md), в начале.
+
 Сервис Tablo T75: берёт данные у infomaster и Open-Meteo, рисует кадр 800×480 в 1 бит, держит WebSocket с платой. Проект и протокол — в [`../tablo-software.md`](../tablo-software.md).
 
 Демо-данные блоков (`tablo/stub.py`) включаются переключателями в эмуляторе; без них блоки показывают только настоящие данные.

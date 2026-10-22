@@ -45,7 +45,7 @@ class Hub:
         self.real_ha = real_ha
         self.data_dir = data_dir
         self.store = Store(data_dir / "tablo.db" if data_dir else ":memory:")
-        self.infomaster = infomaster.UnimasterSource(get_cfg=lambda: self.cfg, store=self.store,
+        self.infomaster = infomaster.InfomasterSource(get_cfg=lambda: self.cfg, store=self.store,
                                                    on_change=lambda: self.schedule_render(0.5), now=self.now)
         self.ical = ical.IcalSource(get_cfg=lambda: self.cfg, store=self.store,
                                     on_change=lambda: self.schedule_render(0.5), now=self.now)
@@ -135,12 +135,12 @@ class Hub:
         """Render the main screen; returns the current base frame (new or unchanged)."""
         async with self._render_lock:
             classes, classes_label = self.ical.classes()
-            um = self.infomaster
+            im = self.infomaster
             self._check_changed()
             model = builder.build(self.now(), self.cfg, self.active_ha, weather=self.weather.current(),
-                                  grades=um.grades(), grades_problem=um.grades_problem(),
-                                  deadlines=um.deadlines(), deadlines_problem=um.deadlines_problem(),
-                                  news=um.news(), news_problem=um.news_problem(),
+                                  grades=im.grades(), grades_problem=im.grades_problem(),
+                                  deadlines=im.deadlines(), deadlines_problem=im.deadlines_problem(),
+                                  news=im.news(), news_problem=im.news_problem(),
                                   classes=classes, classes_label=classes_label,
                                   classes_problem=self.ical.problem())
             canvas = await asyncio.to_thread(screen.render, model, self.cfg.display.font_mode)

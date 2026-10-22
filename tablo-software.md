@@ -6,6 +6,8 @@
 
 Статус на 21.10.2026: этапы 1–8 готовы; Tablo переходит на infomaster (данные дедлайнов, новостей, оценок и пар — от него, §7), дальше прошивка. Железо заказано.
 
+> **22.10.2026 infomaster переименован в infomaster.** В коде старого имени нет; в документах оно местами осталось, читать так: источник `infomaster` → `infomaster` (модуль `sources/infomaster.py`, секция конфига `infomaster:`, ключи `infomaster.*` в `data/tablo.db`, имя в `tablo.refresh_data` и `/api/refresh`), `TABLO_UNIMASTER_TOKEN` → `TABLO_INFOMASTER_TOKEN`, адрес `http://infomaster:8081` → `http://infomaster:8081`, docker-сеть `infomaster` → `infomaster`, поля ленты `X-UNI-*` → `X-INFOMASTER-*`. Имена на стороне самого infomaster — в его `decisions.md`, р. 42.
+
 | Часть | Разделы |
 |---|---|
 | [`01-architecture.md`](docs/software/01-architecture.md) | §1 состав системы, §2 кто что рисует (зоны экрана) |

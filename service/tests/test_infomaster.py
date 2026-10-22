@@ -81,7 +81,7 @@ def make_source(url, store=None, now=NOW, token=TOKEN):
     cfg.infomaster.url, cfg.infomaster_token = url, token
     changes = []
     clock = {"now": now}
-    src = infomaster.UnimasterSource(get_cfg=lambda: cfg, store=store or Store(),
+    src = infomaster.InfomasterSource(get_cfg=lambda: cfg, store=store or Store(),
                                     on_change=lambda: changes.append(1), now=lambda: clock["now"])
     return src, changes, clock
 
@@ -138,7 +138,7 @@ async def test_unreachable_shows_saved_data_after_restart(fake, unused_tcp_port)
 async def test_nothing_saved_and_no_token():
     src, _, _ = make_source("http://127.0.0.1:9", token="")
     await src.poll()
-    assert src.status.error == "TABLO_UNIMASTER_TOKEN not set"
+    assert src.status.error == "TABLO_INFOMASTER_TOKEN not set"
     assert src.deadlines() == src.news() == src.grades() == () and src.down()
 
 

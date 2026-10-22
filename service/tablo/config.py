@@ -90,8 +90,8 @@ class Ical:
 
 
 @dataclass
-class Unimaster:
-    """§7.2: deadlines, news and grades from infomaster's internal API. The token is TABLO_UNIMASTER_TOKEN."""
+class Infomaster:
+    """§7.2: deadlines, news and grades from infomaster's internal API. The token is TABLO_INFOMASTER_TOKEN."""
 
     url: str = "http://infomaster:8081"
     poll_seconds: int = 60
@@ -185,7 +185,7 @@ class Config:
     message_duration_s: int = 30
     # Which blocks show demo data until their real source exists; "ha" is the in-memory fake HA.
     demo: dict[str, bool] = field(default_factory=lambda: dict.fromkeys(DEMO_KEYS, True))
-    infomaster: Unimaster = field(default_factory=Unimaster)
+    infomaster: Infomaster = field(default_factory=Infomaster)
     ical: Ical = field(default_factory=Ical)
     weather: Weather = field(default_factory=Weather)
     home: Home = field(default_factory=Home)
@@ -231,7 +231,7 @@ def from_dict(data: dict) -> Config:
 
     cfg.demo.update(parse_demo(data.pop("demo", {}) or {}))
 
-    cfg.infomaster = Unimaster(**_known(Unimaster, dict(data.pop("infomaster", {}) or {}), "infomaster"))
+    cfg.infomaster = Infomaster(**_known(Infomaster, dict(data.pop("infomaster", {}) or {}), "infomaster"))
     cfg.ical = Ical(**_known(Ical, dict(data.pop("ical", {}) or {}), "ical"))
     cfg.weather = Weather(**_known(Weather, dict(data.pop("weather", {}) or {}), "weather"))
 
@@ -288,7 +288,7 @@ def parse_demo(data: dict) -> dict[str, bool]:
 def _apply_env(cfg: Config) -> None:
     cfg.device_token = os.environ.get("TABLO_DEVICE_TOKEN", cfg.device_token)
     cfg.api_token = os.environ.get("TABLO_API_TOKEN", cfg.api_token)
-    cfg.infomaster_token = os.environ.get("TABLO_UNIMASTER_TOKEN", cfg.infomaster_token)
+    cfg.infomaster_token = os.environ.get("TABLO_INFOMASTER_TOKEN", cfg.infomaster_token)
     cfg.ha.url = os.environ.get("TABLO_HA_URL", cfg.ha.url)
     cfg.ha.token = os.environ.get("TABLO_HA_TOKEN", cfg.ha.token)
     if "TABLO_PORT" in os.environ:
