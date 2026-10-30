@@ -4,7 +4,7 @@
 "use strict";
 
 const W = 800, H = 480, ROW = W / 8, PAYLOAD = ROW * H, HEADER = 20;
-const FW = "emu-0.5";
+const FW = "emu-0.6";
 const params = new URLSearchParams(location.search);
 const TOKEN = params.get("token") || "dev-device-token";
 const DEVICE = params.get("device") || "tablo-emu";
@@ -21,7 +21,7 @@ const DEFAULT_CONFIG = {
   semester_start: "2026-09-01",
   zones: { clock: [0, 0, 184, 100], status: [600, 0, 200, 24], buttons: [0, 428, 800, 52], tile_width: 100 },
   long_press_ms: 600,
-  full_refresh: { at: "04:00", max_partials: 200 },
+  full_refresh: { at: "04:00", max_partials: 200, big_change: 0.3 },
   offline_after_s: 120,
   diag_ttl_s: 30,
 };
@@ -334,16 +334,20 @@ function present(full = false) {
     fullRefreshAnimation();
     return;
   }
-  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1, cells = 0;
   for (let y = 0; y < H; y++) {
     const o = y * W;
+    let lastCell = -1;
     for (let x = 0; x < W; x++) {
       if (buf[o + x] !== st.displayed[o + x]) {
         if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x >> 3 !== lastCell) { lastCell = x >> 3; cells++; }
       }
     }
   }
   if (x1 < 0) return;
+  // A big change (a new screen) gets a full refresh: a partial one would leave ghosts (§3.4).
+  if (cells > (st.cfg.full_refresh.big_change ?? 0.3) * PAYLOAD) { present(true); return; }
   st.displayed = buf;
   st.partials++;
   if (opt.rects.checked) {
