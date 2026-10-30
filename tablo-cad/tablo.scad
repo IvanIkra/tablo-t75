@@ -317,7 +317,7 @@ module to_world() { translate([W, 0, 0]) rotate([0, 0, 180]) rotate([90, 0, 0]) 
 
 // ---------- part selector ----------
 if (part == "front") front_shell();
-else if (part == "back") translate([0, 0, T]) mirror([0, 0, 1]) back_cover();
+else if (part == "back") translate([0, H, T]) rotate([180, 0, 0]) back_cover();
 else if (part == "leg") translate([0, 0, -T]) leg();
 else if (part == "key_plate") translate([0, 0, -plate_z0]) key_plate();
 else if (part == "keycap") keycap(false);
