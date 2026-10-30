@@ -4,6 +4,7 @@
 #include <ArduinoOTA.h>
 #include <WiFi.h>
 
+#include "buttons.h"
 #include "link.h"
 #include "screen.h"
 #include "secrets.h"
@@ -26,6 +27,10 @@ static void tick() {
   if (screen::overlayExpired()) {
     svc::overlayClosed("ttl");
     screen::endOverlay();
+    return;
+  }
+  if (screen::diagExpired()) {
+    screen::endDiag();
     return;
   }
   struct tm t;
@@ -56,6 +61,7 @@ void setup() {
 
   screen::begin();
   screen::present(true);
+  buttons::begin();
 
   WiFi.mode(WIFI_STA);
   WiFi.setHostname("tablo");
@@ -83,6 +89,7 @@ void loop() {
   }
   if (otaStarted) ArduinoOTA.handle();
   svc::loop();
+  buttons::loop();
   if (millis() - lastTickMs >= 1000) {
     lastTickMs = millis();
     tick();

@@ -11,13 +11,19 @@ void loop();  // powers the panel down when idle
 // full: full refresh (with flashing) instead of partial.
 void present(bool full = false);
 
-void setBase(const uint8_t *payload);  // keep a new base frame; present() shows it
+// Keep a new base frame; present() shows it. Returns the button tiles it changed, bit per tile.
+uint8_t setBase(const uint8_t *payload);
 void zonesChanged();                   // after a config with other zones
 
 void showOverlay(const uint8_t *payload, uint16_t ttl_s);  // full-screen frame (§5)
 bool overlayActive();
 bool overlayExpired();
 void endOverlay();
+
+void showDiag();  // the firmware's own diagnostics screen, diag_ttl_s (§5)
+bool diagActive();
+bool diagExpired();
+void endDiag();
 
 uint16_t partialsSinceFull();
 

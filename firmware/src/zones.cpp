@@ -1,9 +1,11 @@
 #include "zones.h"
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include <stdio.h>
 
 #include "assets.h"
+#include "screen.h"
 #include "state.h"
 
 static const char *WEEKDAYS[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
@@ -73,4 +75,93 @@ void drawStatusZone(Canvas &c) {
     c.glyph(ICONS, x - g->advance, 19, icons[i]);
     x -= g->advance + 5;
   }
+}
+
+// Same rows and places as the emulator's: title baseline 48, rows from 84 every 25 px.
+Rect diagLine(int i) {
+  if (i == 0) return {0, 16, W, 40};
+  return {0, (int16_t)(84 - 18 + (i - 1) * 25), W, 24};
+}
+
+static void hhmmAgo(char *out, size_t n, uint32_t sinceMs) {
+  time_t at = time(nullptr) - (millis() - sinceMs) / 1000;
+  struct tm t;
+  if (!localTimeNow(t)) {
+    snprintf(out, n, "%lu s ago", (unsigned long)((millis() - sinceMs) / 1000));
+    return;
+  }
+  localtime_r(&at, &t);
+  snprintf(out, n, "%02d:%02d", t.tm_hour, t.tm_min);
+}
+
+void drawDiagLine(Canvas &c, int i) {
+  c.clear();
+  if (i == 0) {
+    c.text(FONT_SEMI30, 40, 32, "Diagnostics");
+    return;
+  }
+  char v[64], at[16];
+  const char *k = "";
+  uint32_t up = millis() / 1000;
+  switch (i) {
+    case 1:
+      k = "IP";
+      snprintf(v, sizeof v, "%s", st.wifiUp ? WiFi.localIP().toString().c_str() : "no Wi-Fi");
+      break;
+    case 2:
+      k = "Wi-Fi";
+      if (st.wifiUp) snprintf(v, sizeof v, "%d dBm", WiFi.RSSI());
+      else snprintf(v, sizeof v, "down");
+      break;
+    case 3:
+      k = "Uptime";
+      snprintf(v, sizeof v, "%luh %lum %lus", (unsigned long)(up / 3600), (unsigned long)(up / 60 % 60),
+               (unsigned long)(up % 60));
+      break;
+    case 4:
+      k = "Firmware";
+      snprintf(v, sizeof v, "%s", FW_VERSION);
+      break;
+    case 5:
+      k = "Free heap";
+      snprintf(v, sizeof v, "%lu B, largest block %lu B", (unsigned long)ESP.getFreeHeap(),
+               (unsigned long)ESP.getMaxAllocHeap());
+      break;
+    case 6:
+      k = "Service";
+      if (st.connected) {
+        snprintf(v, sizeof v, "connected");
+      } else {
+        hhmmAgo(at, sizeof at, st.offlineSinceMs);
+        snprintf(v, sizeof v, "offline since %s", at);
+      }
+      break;
+    case 7:
+      k = "Home Assistant";
+      snprintf(v, sizeof v, "%s", st.connected ? (health.ha ? "ok" : "down") : "unknown");
+      break;
+    case 8:
+      k = "infomaster";
+      snprintf(v, sizeof v, "%s", st.connected ? (health.data ? "ok" : "down \xC2\xB7 saved data") : "unknown");
+      break;
+    case 9:
+      k = "Last frame";
+      if (st.lastFrameMs) {
+        hhmmAgo(at, sizeof at, st.lastFrameMs);
+        snprintf(v, sizeof v, "%s \xC2\xB7 id %lu", at, (unsigned long)st.baseId);
+      } else {
+        snprintf(v, sizeof v, "none");
+      }
+      break;
+    case 10:
+      k = "Last sync";
+      snprintf(v, sizeof v, "%s", health.syncedAt[0] ? health.syncedAt : "never");
+      break;
+    case 11:
+      k = "Partial updates";
+      snprintf(v, sizeof v, "%u", screen::partialsSinceFull());
+      break;
+  }
+  c.text(FONT_SEMI16, 40, 18, k);
+  c.text(FONT_DATE, 230, 18, v);
 }

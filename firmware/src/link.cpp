@@ -4,6 +4,7 @@
 #include <WebSocketsClient.h>
 #include <WiFi.h>
 
+#include "buttons.h"
 #include "screen.h"
 #include "secrets.h"
 #include "state.h"
@@ -13,10 +14,10 @@ static const uint16_t BACKOFF_S[] = {1, 2, 4, 8, 16, 30};
 static uint8_t backoffIdx = 0;
 static uint32_t lastStatusMs = 0;
 
-static void send(JsonDocument &doc) {
+static bool send(JsonDocument &doc) {
   String s;
   serializeJson(doc, s);
-  ws.sendTXT(s);
+  return ws.sendTXT(s);
 }
 
 static void sendHello() {
@@ -65,7 +66,7 @@ static void onFrame(const uint8_t *data, size_t len) {
     screen::showOverlay(payload, ttl);
   } else {
     // During an overlay the new base waits and is shown when it closes (§5).
-    screen::setBase(payload);
+    buttons::settled(screen::setBase(payload));
     st.haveBase = true;
     st.baseCrc = crc;
     st.baseId = id;
@@ -137,8 +138,11 @@ static void onText(const uint8_t *data, size_t len) {
   } else if (!strcmp(type, "full_refresh")) {
     screen::present(true);
     return;
+  } else if (!strcmp(type, "button_result")) {
+    if (!(doc["ok"] | true)) Serial.printf("link: button failed: %s\n", doc["error"] | "?");
+    buttons::result(doc["seq"] | 0u);
+    return;  // buttons::loop redraws the tile
   }
-  // button_result: with the buttons, next step.
   screen::present();
 }
 
@@ -197,6 +201,17 @@ void loop() {
     lastStatusMs = millis();
     sendStatus();
   }
+}
+
+bool sendButton(int id, const char *press, uint32_t seq, bool local) {
+  if (!st.connected) return false;
+  JsonDocument d;
+  d["type"] = "button";
+  d["id"] = id;
+  d["press"] = press;
+  d["seq"] = seq;
+  if (local) d["local"] = true;
+  return send(d);
 }
 
 void overlayClosed(const char *reason) {
