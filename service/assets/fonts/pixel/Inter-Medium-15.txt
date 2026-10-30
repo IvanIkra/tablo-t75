@@ -935,7 +935,7 @@ advance 9 left 1 top 4
 ##...##
 
 glyph 0069 i
-advance 4 left 1 top 3
+advance 4 left 1 top 4
 ##
 ..
 ..
@@ -949,7 +949,7 @@ advance 4 left 1 top 3
 ##
 
 glyph 006A j
-advance 4 left -1 top 3
+advance 4 left -1 top 4
 .##
 ...
 ...

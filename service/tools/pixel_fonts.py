@@ -148,6 +148,13 @@ def align_heights(pf: pixelfont.PixelFont) -> list[str]:
                 g.rows = g.rows[:-2] + [_merge(g.rows[-2], g.rows[-1])]
         if (g.top, g.rows) != before:
             fixed.append(ch)
+    # i and j: the top is the dot, so the lines above miss them; Inter Medium at 15-16 px draws
+    # both a whole row high, stem and dot, with the bottom off the baseline (descender for j).
+    for ch, ref in (("i", "n"), ("j", "p")):
+        g, r = pf.glyphs.get(ch), pf.glyphs.get(ref)
+        if g and g.rows and r and r.rows and g.top + len(g.rows) == r.top + len(r.rows) - 1:
+            g.top += 1
+            fixed.append(ch)
     return fixed
 
 
