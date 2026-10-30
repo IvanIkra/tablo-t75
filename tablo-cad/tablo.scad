@@ -19,7 +19,7 @@
 part = "assembly_desk"; // [assembly_desk, assembly_side, assembly_wall, assembly_back, assembly_open, exploded, front, back, leg, key_plate, keycap, keycap_dimple, key_test]
 
 /* [Body] */
-W = 185;  H = 146;  T = 15;  R = 6;
+W = 185;  H = 146;  T = 17;  R = 6;
 wall = 2;  front_t = 2;  back_t = 2.5;
 front_chamfer = 1.5;         // 45° chamfer around the front edge (prints fine face down)
 back_chamfer = 1.0;          // 45° chamfer around the back cover edge
@@ -42,11 +42,12 @@ pill_w = 16.4;  pill_h = 12;  pill_clr = 0.4;
 plate_t = 1.3;               // Choc clips need a 1.2–1.3 mm plate
 choc_cut = 13.8;             // plate cut-out
 choc_house = 15.4;           // pocket for the 15×15 top housing
-skin = 2.0;                  // front skin above the housing pocket
+skin = 4.0;                  // front skin above the housing pocket (housing top sits 0.8 mm deeper)
 stem_top_rest = 4.6;         // stem top above plate at rest (MEASURE)
 house_above_plate = 1.8;     // top housing height above plate (MEASURE)
 below_plate = 2.2;           // bottom housing below the plate
-cap_t = 3.0;  cap_recess = 1.0;  cap_protrude = 2.0;  travel = 3.0;
+cap_t = 3.0;  cap_recess = 1.0;  travel = 3.0;
+cap_protrude = 0;            // cap top above the front face at rest: 0 = flush, the key sinks in when pressed
 
 /* [Keycap legs, Choc v1 — MEASURE] */
 stem_w = 1.15;  stem_l = 3.0;  stem_h = 3.0;  stem_dx = 5.7;
@@ -70,7 +71,7 @@ usbc_open = [12.5, 6.5];     // side opening, sized for the plug overmould
 switch_open = [8, 4];
 
 /* [Adapter DESPI-C02, 41×22, on tape] */
-adp_w = 41;  adp_h = 22;  adp_pad_h = 4;
+adp_w = 41;  adp_h = 22;  adp_pad_h = 6;   // keeps the adapter where it was, within reach of the FPC
 
 /* [Wall keyholes] */
 kh_y = H - 20;  kh_dx = 52.5;  kh_d = 9;  kh_slot = 4.5;  kh_len = 8;
