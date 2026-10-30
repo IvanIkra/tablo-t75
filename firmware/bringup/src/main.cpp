@@ -15,7 +15,7 @@
 // SPI: SCK 18, MOSI 23.
 constexpr int PIN_CS = 27;
 constexpr int PIN_DC = 14;
-constexpr int PIN_RST = 12;
+constexpr int PIN_RST = 26;  // not 12: strapping pin, see firmware/src/screen.cpp
 constexpr int PIN_BUSY = 13;
 
 GxEPD2_BW<GxEPD2_750_GDEY075T7, GxEPD2_750_GDEY075T7::HEIGHT> display(

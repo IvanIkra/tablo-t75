@@ -8,7 +8,9 @@
 #include "zones.h"
 
 // ESP32-L(C02) + DESPI-C02 wiring (checked on the panel). SPI: SCK 18, MOSI 23.
-constexpr int PIN_CS = 27, PIN_DC = 14, PIN_RST = 12, PIN_BUSY = 13;
+// RST is not on GPIO12: the adapter holds it high at reset, the strap then
+// sets 1.8 V flash and the board boot-loops with "flash read err".
+constexpr int PIN_CS = 27, PIN_DC = 14, PIN_RST = 26, PIN_BUSY = 13;
 constexpr uint32_t POWER_OFF_IDLE_MS = 5000;
 
 static GxEPD2_750_GDEY075T7 epd(PIN_CS, PIN_DC, PIN_RST, PIN_BUSY);

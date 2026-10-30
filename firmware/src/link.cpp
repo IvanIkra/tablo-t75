@@ -145,7 +145,9 @@ static void onText(const uint8_t *data, size_t len) {
 static void onEvent(WStype_t type, uint8_t *payload, size_t len) {
   switch (type) {
     case WStype_CONNECTED:
-      Serial.println("link: connected");
+      // A frame needs one 48 KB block for the whole message.
+      Serial.printf("link: connected, heap %u, largest block %u\n", (unsigned)ESP.getFreeHeap(),
+                    (unsigned)ESP.getMaxAllocHeap());
       st.connected = true;
       backoffIdx = 0;
       ws.setReconnectInterval(BACKOFF_S[0] * 1000UL);
