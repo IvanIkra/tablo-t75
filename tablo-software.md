@@ -4,9 +4,9 @@
 
 Документ разбит на части, чтобы читать только нужное. Номера §N сквозные, ссылки вида «§3.3» ведут в соответствующую часть. Полная исходная версия — в [`docs/archive/tablo-software.md`](docs/archive/tablo-software.md).
 
-Статус на 21.10.2026: этапы 1–8 готовы; Tablo переходит на infomaster (данные дедлайнов, новостей, оценок и пар — от него, §7), дальше прошивка. Железо заказано.
+Статус на 31.10.2026: этапы 1–8 и 10 готовы (данные дедлайнов, новостей, оценок и пар — от infomaster, §7), прошивка почти готова (§10): живая панель в корпусе, fw-0.5. Железо собрано.
 
-> **22.10.2026 infomaster переименован в infomaster.** В коде старого имени нет; в документах оно местами осталось, читать так: источник `infomaster` → `infomaster` (модуль `sources/infomaster.py`, секция конфига `infomaster:`, ключи `infomaster.*` в `data/tablo.db`, имя в `tablo.refresh_data` и `/api/refresh`), `TABLO_UNIMASTER_TOKEN` → `TABLO_INFOMASTER_TOKEN`, адрес `http://infomaster:8081` → `http://infomaster:8081`, docker-сеть `infomaster` → `infomaster`, поля ленты `X-UNI-*` → `X-INFOMASTER-*`. Имена на стороне самого infomaster — в его `decisions.md`, р. 42.
+> **22.10.2026 infomaster переименован в infomaster.** С 31.10 документы тоже говорят infomaster; старое имя осталось у каталога проекта на Маке (`<projects>/infomaster`) и в исторических пометках. Имена на стороне самого infomaster — в его `decisions.md`, р. 42.
 
 | Часть | Разделы |
 |---|---|

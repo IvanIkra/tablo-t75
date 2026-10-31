@@ -16,12 +16,12 @@
 
 | Файл | Что |
 |---|---|
-| `__init__.py` | Подключение, перевод старых записей (1.1 → 1.2: без настроек источников infomaster), действия `tablo.*`, события `tablo_changed`, уведомление о входе в the university app со ссылкой на бота infomaster |
+| `__init__.py` | Подключение, перевод старых записей (1.1 → 1.2: без настроек источников infomaster), действия `tablo.*` (в том числе `show_message` с `sticky` и `clear_messages`), события `tablo_changed`, уведомление о входе в the university app со ссылкой на бота infomaster |
 | `config_flow.py` | Подключение к сервису и формы «Настроить»: кнопки, Wi-Fi, источники, дом, экран |
 | `forms.py` | Многострочные поля форм ↔ списки конфига |
 | `coordinator.py`, `api.py` | Опрос сервиса и HTTP-клиент |
 | `device_trigger.py` | Триггеры «кнопка N, короткое / долгое» |
-| `binary_sensor.py`, `sensor.py` | «Подключено», уровень Wi-Fi, последняя связь |
+| `binary_sensor.py`, `sensor.py` | «Подключено», уровень Wi-Fi, последняя связь, «Sticky messages» (сколько висящих сообщений ждут, заголовки в атрибуте `messages`) |
 
 ## Тесты
 

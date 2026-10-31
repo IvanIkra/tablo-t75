@@ -18,7 +18,7 @@
 
 ### 7.1 infomaster (`sources/infomaster.py`)
 
-- **Адрес:** `infomaster.url`, по умолчанию `http://infomaster:8081` — внутренний порт infomaster, только в его docker-сети `infomaster` (Tablo подключён к ней как к внешней, §12). **Токен:** `Authorization: Bearer <TABLO_UNIMASTER_TOKEN>` (это `API_TOKEN` infomaster, `.env`, §13).
+- **Адрес:** `infomaster.url`, по умолчанию `http://infomaster:8081` — внутренний порт infomaster, только в его docker-сети `infomaster` (Tablo подключён к ней как к внешней, §12). **Токен:** `Authorization: Bearer <TABLO_INFOMASTER_TOKEN>` (это `API_TOKEN` infomaster, `.env`, §13).
 - Раз в минуту (`infomaster.poll_seconds`) четыре `GET`: `/api/deadlines`, `/api/news`, `/api/grades`, `/api/status`. Каждый ответ — полное текущее состояние, курсоров нет. Каждый удачный ответ сохраняется в `kv` (`infomaster.deadlines`, `.news`, `.grades`, `.status`, с `fetched_at`); ответ, который не разбирается в модель экрана, считается ошибкой и не сохраняется. 401 прерывает круг: токен у всех четырёх один.
 - **infomaster недоступен** (сеть, 401, неверный JSON): блоки показывают сохранённое. Свой статус — `ok_at` (последний круг без ошибок) и `error`. Если самый старый из четырёх сохранённых ответов старше **10 минут**, сервис шлёт плате `health` с `data: false`, и в строке статуса появляется значок `mdi:database-off` (§2, §3.3); ответы пошли — значок уходит.
 - `tablo.refresh_data` и кнопка 8 просто опрашивают сразу: «обновить сейчас» у infomaster нет.
@@ -50,12 +50,12 @@
 - **Название — `SUMMARY` как есть:** infomaster уже дал короткое английское из своего словаря (бюджет 13 символов). Не влезло — «…».
 - Первая строка `DESCRIPTION` — тип (*Lecture*, *Seminar*, *Consultation*, *Event*, *Interim assessment*), дальше пометки infomaster.
 - **Аудитория:** первая часть `LOCATION` до запятой (`R609`, `109`). Ссылка в `LOCATION` или в описании, или `URL` — `online`. Ничего — пусто.
-- **Пометки** на месте аудитории (`ClassItem.mark`), по старшинству: `STATUS:CANCELLED` — *cancelled* (такие пары показываются, а не пропускаются); строка `Moved from …` в `DESCRIPTION` после типа — *moved* (время в ленте уже новое); `STATUS:TENTATIVE` или `X-UNI-OPTIONAL:TRUE` — *optional* (необязательное событие, р. 36).
+- **Пометки** на месте аудитории (`ClassItem.mark`), по старшинству: `STATUS:CANCELLED` — *cancelled* (такие пары показываются, а не пропускаются); строка `Moved from …` в `DESCRIPTION` после типа — *moved* (время в ленте уже новое); `STATUS:TENTATIVE` или `X-INFOMASTER-OPTIONAL:TRUE` — *optional* (необязательное событие, р. 36).
 - **Строка на экране:** `10:00 Algebra R401`, `11:10 Algebra moved`; у *optional* вместо слова — смайлик 15 px.
 - **Какие пары показывать:** до 5 ближайших ещё не закончившихся сегодня (столько строк в блоке; идущая сейчас — обычной строкой), в заголовке *today*. Сегодня больше нет — ближайшего дня с событиями, в заголовке *tomorrow*, день недели (*Tue*) или дата, если до него неделя и больше. Отбор — при каждой перерисовке, раз в минуту, по сохранённой ленте.
 - **Рубежный контроль** — обычное событие ленты; дедлайн `<abbr> Midterm` приходит в `/api/deadlines` с `source: ical`, из ленты Tablo его не делает.
 - **Сбои:** лента не отвечает — остаётся сохранённая. Нет ссылки — *calendar link not set*, сбой дольше 12 часов — *timetable unavailable* (вместо «no classes», если пар нет). Ошибка РУЗ у самого infomaster (`ruz.error`) видна в его теме «Система».
-- `X-UNI-SOURCE` и `X-UNI-LINK` пока не читаются: значок источника события — в расширенной версии экрана.
+- `X-INFOMASTER-SOURCE` и `X-INFOMASTER-LINK` пока не читаются: значок источника события — в расширенной версии экрана.
 
 ### 7.4 Погода — Open-Meteo
 

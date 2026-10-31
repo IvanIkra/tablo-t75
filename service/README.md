@@ -28,7 +28,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 
 Личные настройки — в `config.local.yaml` (не в git, накладывается поверх `config.yaml`), секреты — в `.env`. Состояние — в `data/tablo.db`.
 
-- **Дедлайны, новости, оценки** — из infomaster (§7.1): `infomaster.url` (по умолчанию `http://infomaster:8081`, docker-сеть `infomaster`), токен — `API_TOKEN` infomaster в `.env` как `TABLO_UNIMASTER_TOKEN`. Настройки этих блоков (the university app, таблицы, чаты, почта, словарь, свои дедлайны) — в Mini App infomaster.
+- **Дедлайны, новости, оценки** — из infomaster (§7.1): `infomaster.url` (по умолчанию `http://infomaster:8081`, docker-сеть `infomaster`), токен — `API_TOKEN` infomaster в `.env` как `TABLO_INFOMASTER_TOKEN`. Настройки этих блоков (the university app, таблицы, чаты, почта, словарь, свои дедлайны) — в Mini App infomaster.
 - **Пары** — лента infomaster `http://infomaster:8081/calendar/<CALENDAR_SECRET>/tablo.ics`: `ical.url` в `config.local.yaml` или в форме «Источники» HA.
 - **Погода**: Open-Meteo без ключа, секция `weather`.
 - **Дом**: долгоживущий токен HA (Профиль → Безопасность → «Долгоживущие токены доступа») в `.env` как `TABLO_HA_TOKEN`, адрес — `ha.url`. Блок Home — строки-шаблоны HA в секции `home.rows` (§8.3), правятся в форме интеграции; имена сущностей Moonraker сверить после установки интеграции. В эмуляторе снять флажок *fake HA*, чтобы видеть настоящий дом. Скрипты для долгих нажатий — [`../ha-integration/scripts/tablo.yaml`](../ha-integration/scripts/tablo.yaml), вставить в `scripts.yaml` HA.
@@ -59,9 +59,11 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 
 ```bash
 curl -X POST localhost:8765/api/overlay/message -H 'Authorization: Bearer dev-api-token' -d '{"title":"Hi","text":"Hello from curl","duration_s":10}'
+# висит до нажатия, в очереди; снять все — DELETE /api/messages
+curl -X POST localhost:8765/api/overlay/message -H 'Authorization: Bearer dev-api-token' -d '{"title":"Back at 9","sticky":true}'
 ```
 
-`GET /frame.png` — текущий кадр, `GET /api/status` — состояние платы и кадра. Остальное — для интеграции HA, список в §6.4.
+`GET /frame.png` — текущий кадр, `GET /api/status` — состояние платы и кадра, висящие сообщения. Остальное — для интеграции HA, список в §6.4.
 
 ## Режим шрифта
 
