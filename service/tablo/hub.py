@@ -423,11 +423,13 @@ class Hub:
             await self._send(dev, self.config_message())
             frame = self.base or await self.render_base()
             await self._send(dev, self.health_message())
+            if updated_from:
+                # The welcome first: the panel keeps a base that comes during it for later,
+                # so the welcome does not wait for a refresh of a frame no one sees yet.
+                await self._show_welcome(dev, updated_from)
             if msg.get("last_crc") != frame.crc:
                 await self._send(dev, protocol.encode_frame(frame))
-            if updated_from:
-                await self._show_welcome(dev, updated_from)
-            else:
+            if not updated_from:
                 await self._show_sticky([dev])
         elif kind == "status":
             dev.status.update({k: v for k, v in msg.items() if k != "type"})

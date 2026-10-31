@@ -211,33 +211,39 @@ async def test_clear_messages_takes_the_shown_one_off(client):
 
 
 async def _hello_fw(client, fw, notes=None):
+    """Connects, skips config and health; what comes next is up to the test."""
     ws = await client.ws_connect(WS)
     await ws.send_json({"type": "hello", "fw": fw, "notes": notes, "last_crc": None})
-    for _ in range(3):  # config, health, base frame
+    for _ in range(2):  # config, health
         await _recv(ws)
     return ws
 
 
 async def test_new_firmware_number_gets_a_welcome_until_a_button_then_sticky_messages(client):
     store = client.app[HUB].store
-    await _no_message(await _hello_fw(client, "fw-0.4+aaa"))  # first seen: nothing to compare with
+    ws = await _hello_fw(client, "fw-0.4+aaa")
+    assert (await _recv(ws)).kind == protocol.KIND_BASE
+    await _no_message(ws)  # first seen: nothing to compare with
     await client.post("/api/overlay/message", json={"title": "Urgent", "sticky": True}, headers=AUTH)
 
     ws = await _hello_fw(client, "fw-0.5+bbb", "Update screen on the panel.")
-    welcome = await _recv(ws)
+    welcome = await _recv(ws)  # before the base: the panel keeps the base for after it
     assert welcome.kind == protocol.KIND_OVERLAY and welcome.ttl_s == 0
+    assert (await _recv(ws)).kind == protocol.KIND_BASE
     await _no_message(ws)  # the sticky one waits for the welcome
     assert store.get_json("device.fw:test") == "fw-0.4+aaa"  # not seen yet
 
     # A reconnect before the button: the welcome again.
     ws = await _hello_fw(client, "fw-0.5+bbb", "Update screen on the panel.")
     assert (await _recv(ws)).payload == welcome.payload
+    assert (await _recv(ws)).kind == protocol.KIND_BASE
     await ws.send_json({"type": "overlay_closed", "reason": "button"})
     sticky = await _recv(ws)
     assert sticky.ttl_s == 0 and sticky.payload != welcome.payload
     assert store.get_json("device.fw:test") == "fw-0.5+bbb"
 
-    # Same number, another commit: no welcome, the sticky message at once.
+    # Same number, another commit: no welcome, the base and the sticky message at once.
     ws = await _hello_fw(client, "fw-0.5+ccc")
+    assert (await _recv(ws)).kind == protocol.KIND_BASE
     assert (await _recv(ws)).payload == sticky.payload
     assert store.get_json("device.fw:test") == "fw-0.5+ccc"
