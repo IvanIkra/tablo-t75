@@ -16,6 +16,9 @@ SET_LOOP_TASK_STACK_SIZE(6 * 1024);
 static void startOta() {
   ArduinoOTA.setHostname("tablo");
   ArduinoOTA.setPassword(OTA_PASSWORD);
+  // The default 1 s for each piece broke an upload off (error 3) on a Wi-Fi stall
+  // or while a 48 KB frame came in over the WebSocket.
+  ArduinoOTA.setTimeout(10000);
   ArduinoOTA.onStart([] { Serial.println("ota: start"); });
   ArduinoOTA.onError([](ota_error_t e) { Serial.printf("ota: error %u\n", e); });
   ArduinoOTA.begin();
