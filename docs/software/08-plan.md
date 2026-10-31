@@ -1,28 +1,31 @@
-# Tablo — софт: структура репозитория, план, открытые вопросы (§14–16)
+# Tablo — software: repository layout, plan, open questions (§14–16)
 
-> Часть проекта софта, индекс — [`docs/README.md`](../README.md). Номера §N сквозные по всем частям.
+> Part of the software design, index in [`docs/README.md`](../README.md). Section numbers §N run through all the parts.
 
-## 14. Структура репозитория
+## 14. Repository layout
 
 ```
 tablo-t75/
-├── tablo-project.md          продукт и железо
-├── tablo-software.md         этот документ
-├── tablo-cad/                корпус
-├── tablo-presentation/       презентация и рендеры
-├── service/                  сервис
+├── README.md
+├── docs/
+│   ├── README.md             software design index (this design)
+│   ├── hardware.md           product and hardware
+│   └── software/             the design, part by part
+├── cad/                      enclosure (OpenSCAD, STL, previews)
+├── presentation/             presentation and renders
+├── service/                  the service
 │   ├── tablo/
-│   │   ├── app.py            запуск, расписание, HTTP и WebSocket
-│   │   ├── protocol.py       сообщения и формат кадра
-│   │   ├── config.py         схема конфига (YAML или HA)
+│   │   ├── app.py            startup, scheduling, HTTP and WebSocket
+│   │   ├── protocol.py       messages and the frame format
+│   │   ├── config.py         config schema (YAML or HA)
 │   │   ├── store.py          SQLite
-│   │   ├── model.py          модель экрана
-│   │   ├── render/           раскладка, шрифты, значки, полноэкранные экраны
-│   │   ├── sources/          infomaster (дедлайны, новости, оценки, статус), ical (лента tablo.ics), weather
-│   │   └── ha.py             WebSocket к HA и поддельный HA
-│   ├── emulator/             страница эмулятора (HTML + JS)
-│   ├── assets/               Inter, MDI, значки погоды
-│   ├── tests/                фикстуры (обезличенные) и эталонные кадры
+│   │   ├── model.py          screen model
+│   │   ├── render/           layout, fonts, icons, full-screen screens
+│   │   ├── sources/          infomaster (deadlines, news, grades, status), ical (the tablo.ics feed), weather
+│   │   └── ha.py             WebSocket to HA and the fake HA
+│   ├── emulator/             the emulator page (HTML + JS)
+│   ├── assets/               Inter, MDI, weather icons
+│   ├── tests/                fictional fixtures and reference frames
 │   ├── Dockerfile
 │   ├── compose.yaml
 │   └── .env.example
@@ -33,34 +36,34 @@ tablo-t75/
 
 ---
 
-## 15. План работ
+## 15. Work plan
 
-| # | Этап | Результат | Нужно от пользователя |
+| # | Stage | Result | Needed from the owner |
 |---|---|---|---|
-| 1 | **Каркас и эмулятор** — готов 18.10, [`service/`](../../service/README.md) | Протокол, кадр, рендер на заглушках, эмулятор с кнопками; кнопки из `config.yaml` | — |
-| 2 | **Оценки** — готов 18.10 | Таблицы → разметка Haiku → журнал → блок Grades | Ключ Anthropic |
-| 3 | **Дедлайны** — готов 18.10 | Модуль the university app: обновление токена, короткие английские названия от Haiku, *HSE login needed*, страница входа `/hseapp` | — |
-| 4 | **Пары** — готов 18.10 | iCal РУЗ с ETag, общий словарь предметов (пары и дедлайны), правило «сегодня или ближайший день», *Midterm* из iCal в дедлайны со склейкой дублей | — |
-| 5 | **Новости** — готов 18.10 | t.me/s, IMAP, разбор Haiku, дедлайны из учёбы (расписание не трогаем) | Пароль приложения Яндекса |
-| 6 | **Погода и дом** — готов 18.10, проверен вживую с HA | Open-Meteo, подписка на HA, состояния плиток, действия кнопок, интеграция Moonraker в HA для принтера, скрипты HA для долгих нажатий | Долгоживущий токен HA, Moonraker через HACS, скрипты в HA |
-| 7 | **Интеграция HA** — готов 18.10, проверен вживую (HA 2026.4.4, сервис пока на Mac), [`ha-integration/`](../../ha-integration/README.md) | Настройка кнопок и источников, триггеры, `tablo.*`, QR и сообщения, списки дел «Tablo · Study» и «Tablo · Personal» | Создать скрипты в HA |
-| 8 | **Развёртывание** — сервис в Docker на хосте с 18.10, §12 | Docker на `server`, замер памяти | Доступ по ssh, sudo |
-| 9 | **Прошивка** — с 30.10, почти готова: живая панель в корпусе, fw-0.7 (§10) | Кадры и частичное обновление, часы и статус, 8 кнопок, диагностика, OTA с экраном обновления (через сервис, espota запасной), приветствие после новой версии. Осталось: подобрать `big_change` и `max_partials` | — |
-| 10 | **Переход на infomaster** (тогда infomaster) — готов 21.10 (§12) | Источник infomaster (API и `tablo.ics`), значок «infomaster недоступен», пометка необязательных событий; из Tablo убраны the university app, почта, Telegram, Haiku, оценки, словарь, списки дел и датчики LLM | Запустить infomaster, токен и ссылку на ленту |
+| 1 | **Skeleton and emulator** — done 18.10, [`service/`](../../service/README.md) | Protocol, frame, rendering on stubs, an emulator with buttons; buttons from `config.yaml` | — |
+| 2 | **Grades** — done 18.10 | Sheets → Haiku layout → log → the Grades block | Anthropic key |
+| 3 | **Deadlines** — done 18.10 | The university app module: token refresh, short English titles from Haiku, *HSE login needed*, a `/hseapp` login page | — |
+| 4 | **Classes** — done 18.10 | Timetable iCal with ETag, a shared subject dictionary (classes and deadlines), the "today or the nearest day" rule, *Midterm* from iCal into deadlines with duplicates merged | — |
+| 5 | **News** — done 18.10 | t.me/s, IMAP, Haiku parsing, study deadlines (the timetable is left alone) | A mail app password |
+| 6 | **Weather and home** — done 18.10, tested live with HA | Open-Meteo, the HA subscription, tile states, button actions, the Moonraker integration in HA for the printer, HA scripts for long presses | A long-lived HA token, Moonraker via HACS, scripts in HA |
+| 7 | **HA integration** — done 18.10, tested live (HA 2026.4.4, the service still on the dev machine), [`ha-integration/`](../../ha-integration/README.md) | Button and source settings, triggers, `tablo.*`, QR and messages, the "Tablo · Study" and "Tablo · Personal" to-do lists | Create scripts in HA |
+| 8 | **Deployment** — the service in Docker on the server since 18.10, §12 | Docker on the `server`, memory measured | ssh access |
+| 9 | **Firmware** — since 30.10, nearly done: a live panel in its enclosure, fw-0.7 (§10) | Frames and partial refresh, clock and status, 8 buttons, diagnostics, OTA with an update screen (through the service, espota as the fallback), a greeting after a new version. Left: tune `big_change` and `max_partials` | — |
+| 10 | **Move to infomaster** — done 21.10 (§12) | The infomaster source (API and `tablo.ics`), an "infomaster unreachable" icon, optional events marked; the university app, mail, Telegram, Haiku, grades, the dictionary, the to-do lists and the LLM sensors removed from Tablo | Run infomaster, the token and the feed link |
 
-После каждого этапа результат виден в эмуляторе.
+After each stage the result is visible in the emulator.
 
-Вне плана, 31.10: висящие сообщения (§5) — `tablo.show_message` с `sticky`, до нажатия, очередь, `tablo.clear_messages`, сенсор и событие `tablo_message_dismissed` в HA.
+Outside the plan, 31.10: sticky messages (§5) — `tablo.show_message` with `sticky`, until a press, a queue, `tablo.clear_messages`, a sensor and the `tablo_message_dismissed` event in HA.
 
 ---
 
-## 16. Открытые вопросы
+## 16. Open questions
 
-Решены 18.10: просроченные дедлайны, скрытие ошибочных и свои дедлайны, повторный вход в the university app (проверен вживую в Safari), «lights N of M», подсветка, принтер, IMAP почты — ответы внесены в §7.2, §7.5, §7.6, §8.2, §8.4.
+Settled on 18.10: overdue deadlines, hiding wrong ones and own deadlines, logging in to the university app again (tested live in Safari), "lights N of M", the backlight, the printer, mail over IMAP — the answers are in §7.2, §7.5, §7.6, §8.2, §8.4.
 
-Осталось, решается по ходу:
+Left, settled along the way:
 
-1. ~~**Маршруты**~~ — решено 18.10.
-2. ~~**Стоимость Haiku**~~ — у infomaster (экран «Расход LLM»).
-3. **Полное обновление:** как часто на самом деле нужно. Подберём на живой панели.
-4. **Шрифт в ч/б:** без сглаживания или с порогом. Решим на превью и на панели.
+1. ~~**Routes**~~ — settled on 18.10.
+2. ~~**Haiku cost**~~ — with infomaster (the "LLM usage" screen).
+3. **Full refresh:** how often it is really needed. To be tuned on the live panel.
+4. **Font in black and white:** no antialiasing or a threshold. To be decided on previews and on the panel.

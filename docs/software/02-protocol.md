@@ -1,115 +1,114 @@
-# Tablo — софт: протокол, кнопки, оверлеи (§3–5)
+# Tablo — software: protocol, buttons, overlays (§3–5)
 
-> Часть проекта софта, индекс — [`docs/README.md`](../README.md). Номера §N сквозные по всем частям.
+> Part of the software design, index in [`docs/README.md`](../README.md). Section numbers §N run through all the parts.
 
-## 3. Протокол плата ↔ сервис
+## 3. Board ↔ service protocol
 
-### 3.1 Соединение
+### 3.1 Connection
 
-- Одно WebSocket-соединение: `ws://<сервис>:8765/ws?device=<id>&token=<токен>`. Токен в query, а не в заголовке, потому что браузерный эмулятор не умеет ставить заголовки на WebSocket.
-- Текстовые сообщения — JSON с полем `type`. Бинарные сообщения — только кадры (§3.2).
-- Пинг на уровне WebSocket каждые 20 с. Нет трафика 60 с — соединение считается мёртвым.
-- Переподключение с паузами 1, 2, 4, 8, 16, 30, 30… с.
-- При подключении плата шлёт `hello` с CRC последнего кадра. Сервис отвечает `config`, `health` и, если CRC не совпал, текущим кадром (после новой версии прошивки перед ним идёт приветствие, §5).
+- One WebSocket connection: `ws://<service>:8765/ws?device=<id>&token=<token>`. The token goes in the query rather than a header because the browser emulator cannot set headers on a WebSocket.
+- Text messages are JSON with a `type` field. Binary messages are frames only (§3.2).
+- WebSocket-level ping every 20 s. No traffic for 60 s means the connection is dead.
+- Reconnects after pauses of 1, 2, 4, 8, 16, 30, 30… s.
+- On connect the board sends `hello` with the CRC of its last frame. The service answers with `config`, `health` and, if the CRC does not match, the current frame (after a new firmware version a greeting comes first, §5).
 
-### 3.2 Кадр (бинарное сообщение)
+### 3.2 Frame (binary message)
 
-| Смещение | Размер | Поле | Значение |
+| Offset | Size | Field | Value |
 |---|---|---|---|
 | 0 | 4 | magic | `TBLF` |
 | 4 | 1 | version | `1` |
-| 5 | 1 | kind | `0` — основной кадр, `1` — полноэкранный (§5) |
-| 6 | 2 | ttl_s | Для полноэкранного: сколько секунд показывать (LE u16), `0` — до нажатия (с fw-0.3). Для основного 0 |
-| 8 | 4 | frame_id | Монотонный номер кадра (LE u32) |
-| 12 | 4 | crc32 | CRC32 полезной нагрузки |
+| 5 | 1 | kind | `0` — base frame, `1` — full-screen (§5) |
+| 6 | 2 | ttl_s | For full-screen: how many seconds to show it (LE u16), `0` — until a press (since fw-0.3). 0 for the base frame |
+| 8 | 4 | frame_id | Monotonic frame number (LE u32) |
+| 12 | 4 | crc32 | CRC32 of the payload |
 | 16 | 2 | width | 800 |
 | 18 | 2 | height | 480 |
-| 20 | 48 000 | payload | Строки сверху вниз, 100 байт на строку, старший бит — левый пиксель, **1 = чёрный** |
+| 20 | 48 000 | payload | Rows top to bottom, 100 bytes per row, the most significant bit is the leftmost pixel, **1 = black** |
 
-- Без сжатия: 48 КБ по локальной сети — это доли секунды.
-- Плата хранит последний основной кадр, сравнивает новый со старым построчно и делает **частичное обновление** только прямоугольника, в котором есть изменения.
-- Если контроллеру экрана нужна обратная полярность, прошивка инвертирует при выводе. Протокол не меняется.
-- **Тёмная тема** (`theme: dark` в `config`, по умолчанию): кадры остаются 1 = чёрный, а плата при выводе на панель инвертирует всё — кадр, свои зоны, диагностику, экран обновления; эмулятор так же. Смена темы — полное обновление. `/frame.png` в тёмной теме отдаёт картинку уже инвертированной, как на панели.
-- Сервис шлёт новый кадр, только если CRC изменился, и не чаще раза в 2 с. Исключение — кадр в ответ на кнопку.
+- No compression: 48 KB over the local network takes a fraction of a second.
+- The board keeps the last base frame, compares the new one with it row by row and does a **partial refresh** of just the rectangle that changed.
+- If the display controller needs the opposite polarity, the firmware inverts on output. The protocol stays the same.
+- **Dark theme** (`theme: dark` in `config`, the default): frames stay 1 = black, and the board inverts everything it sends to the panel — the frame, its own zones, diagnostics, the update screen; the emulator does the same. A theme change is a full refresh. In the dark theme `/frame.png` returns the picture already inverted, as on the panel.
+- The service sends a new frame only if the CRC changed, and at most once every 2 s. The exception is a frame in reply to a button.
 
-### 3.3 Сообщения
+### 3.3 Messages
 
-**Плата → сервис**
+**Board → service**
 
-| type | Поля | Когда |
+| type | Fields | When |
 |---|---|---|
-| `hello` | `fw`, `notes` (что изменилось в этой версии, §5), `device`, `last_crc`, `rssi`, `uptime_s` | После подключения |
-| `button` | `id` 1–8, `press` `short` / `long`, `seq`, `local` (для 8) | Нажатие. Кнопка 8 тоже отправляется, но как событие: действие у неё прошито |
-| `overlay_closed` | `reason`: `button` / `ttl` | Закрыт полноэкранный экран |
-| `status` | `rssi`, `uptime_s`, `heap`, `partials_since_full`, `ip` | Раз в 60 с |
-| `frame_ack` | `frame_id` | Кадр выведен |
+| `hello` | `fw`, `notes` (what changed in this version, §5), `device`, `last_crc`, `rssi`, `uptime_s` | After connecting |
+| `button` | `id` 1–8, `press` `short` / `long`, `seq`, `local` (for 8) | A press. Button 8 is sent too, but as an event: its action is built in |
+| `overlay_closed` | `reason`: `button` / `ttl` | A full-screen screen closed |
+| `status` | `rssi`, `uptime_s`, `heap`, `partials_since_full`, `ip` | Every 60 s |
+| `frame_ack` | `frame_id` | A frame is shown |
 
-**Сервис → плата**
+**Service → board**
 
-| type | Поля | Когда |
+| type | Fields | When |
 |---|---|---|
-| `config` | `tz` (`MSK-3`), `ntp`, `semester_start`, `zones` (§2), `long_press_ms` (600), `full_refresh` (`at: "04:00"`, `max_partials`, `big_change` — пока не шлётся, у платы и эмулятора 0,3), `offline_after_s` (120), `diag_ttl_s` (30), `theme` (`dark` / `light`, по умолчанию `dark`) | После `hello` и при изменении настроек |
-| `health` | `ha` (bool), `data` (bool: `false`, пока infomaster не отвечает дольше 10 мин — данные блоков старые, §11), `synced_at` (`HH:MM`) | Раз в 60 с и при изменении |
-| `button_result` | `seq`, `ok`, `error` | Действие выполнено или провалилось (§4.2) |
-| `full_refresh` | — | Принудительное полное обновление (действие HA) |
-| `close_overlay` | — | Снять полноэкранный экран: висящие сообщения очищены из HA (§5). `overlay_closed` в ответ не шлётся |
-| `ota` | `size`, `md5` | Выложена новая прошивка (`PUT /api/firmware`): плата сама скачивает `GET /firmware.bin?token=…` и ставит её (§5, §10). Плата до fw-0.7 команду не знает |
+| `config` | `tz` (`MSK-3`), `ntp`, `semester_start`, `zones` (§2), `long_press_ms` (600), `full_refresh` (`at: "04:00"`, `max_partials`, `big_change` — not sent yet, the board and the emulator use 0.3), `offline_after_s` (120), `diag_ttl_s` (30), `theme` (`dark` / `light`, `dark` by default) | After `hello` and when settings change |
+| `health` | `ha` (bool), `data` (bool: `false` while infomaster has not answered for over 10 min — the block data is stale, §11), `synced_at` (`HH:MM`) | Every 60 s and on change |
+| `button_result` | `seq`, `ok`, `error` | The action succeeded or failed (§4.2) |
+| `full_refresh` | — | Forced full refresh (an HA action) |
+| `close_overlay` | — | Take the full-screen screen down: sticky messages were cleared from HA (§5). No `overlay_closed` is sent back |
+| `ota` | `size`, `md5` | New firmware is uploaded (`PUT /api/firmware`): the board downloads `GET /firmware.bin?token=…` itself and installs it (§5, §10). Boards before fw-0.7 do not know this command |
 
-### 3.4 Обновление экрана
+### 3.4 Screen refresh
 
-- **Частичное** (на живой панели 0,44 с для окна, 0,62 с для всего экрана): изменения кадра, часы раз в минуту, плитки кнопок.
-- **Полное** (2,3 с, с миганием): ежедневно в `full_refresh.at` (по умолчанию 04:00), после `max_partials` частичных подряд, по кнопке 8, по команде `full_refresh` и при **большой смене**: если за раз изменилось больше `big_change` (по умолчанию 0,3) восьмипиксельных ячеек экрана. Так новый экран (оверлей, его закрытие) не оставляет следов прошлого, а мелкие изменения идут частичным. После серии частичных на живой панели видны лёгкие следы прошлого заголовка, мелкие обновления почти ничего не оставляют. `big_change` и `max_partials` подберём по опыту.
+- **Partial** (0.44 s for a window, 0.62 s for the whole screen on the live panel): frame changes, the clock once a minute, button tiles.
+- **Full** (2.3 s, with flashing): daily at `full_refresh.at` (04:00 by default), after `max_partials` partial refreshes in a row, on button 8, on the `full_refresh` command and on a **big change**: when more than `big_change` (0.3 by default) of the screen's eight-pixel cells change at once. That way a new screen (an overlay, or closing it) leaves no traces of the old one, while small changes go as partial refreshes. After a series of partial refreshes the live panel shows faint traces of the previous header; small updates leave almost nothing. `big_change` and `max_partials` will be tuned by experience.
 
 ---
 
-## 4. Кнопки
+## 4. Buttons
 
-### 4.1 Раскладка
+### 4.1 Layout
 
-| Кнопка | Короткое | Долгое (≥ 600 мс) | Настраивается |
+| Button | Short | Long (≥ 600 ms) | Configured |
 |---|---|---|---|
-| 1–7 | Действие из HA | Своё действие из HA | **В HA** (§8.2) |
-| 8 | Полное обновление и запрос свежего кадра | Экран диагностики на 30 с | Прошито |
+| 1–7 | An action from HA | Its own action from HA | **In HA** (§8.2) |
+| 8 | Full refresh and a request for a fresh frame | Diagnostics screen for 30 s | Built in |
 
-- Когда порог долгого нажатия пройден, плата сразу меняет вид плитки (рамка вместо заливки), чтобы было понятно, что засчиталось долгое, ещё до отпускания.
-- Подавление дребезга — 20 мс.
+- Once the long-press threshold passes, the board changes the tile at once (a frame instead of a fill), so it is clear a long press counted even before release.
+- Debounce is 20 ms.
 
-### 4.2 Мгновенный отклик
+### 4.2 Instant feedback
 
-1. Нажатие → плата **сразу** инвертирует плитку поверх основного кадра (локальная пометка) и шлёт `button`.
-2. Сервис выполняет действие в HA и ждёт `state_changed` нужной сущности. Таймаут — 10 с: облачный Tuya бывает медленным.
-3. Успех → сервис шлёт новый основной кадр с настоящим состоянием плитки, потом `button_result ok`.
-4. Плата по `button_result` (или через 12 с без ответа) снимает локальную пометку и перерисовывает плитку из основного кадра. Если команда не прошла, плитка возвращается в прежний вид.
-5. Сервис недоступен → плата инвертирует плитку и через 1,5 с возвращает обратно: видно, что нажатие не ушло.
+1. Press → the board **at once** inverts the tile over the base frame (a local mark) and sends `button`.
+2. The service runs the action in HA and waits for `state_changed` of the right entity. The timeout is 10 s: cloud Tuya can be slow.
+3. Success → the service sends a new base frame with the real tile state, then `button_result ok`.
+4. On `button_result` (or after 12 s with no answer) the board removes the local mark and redraws the tile from the base frame. If the command failed, the tile goes back to how it was.
+5. Service unreachable → the board inverts the tile and turns it back after 1.5 s: you can see the press did not go through.
 
 ---
 
-## 5. Полноэкранные экраны
+## 5. Full-screen screens
 
-Кадр с `kind = 1` показывается на весь экран. Плата не рисует поверх него часы, статус и плитки.
+A frame with `kind = 1` covers the whole screen. The board does not draw the clock, status or tiles over it.
 
-- Через `ttl_s` плата **сама** возвращает основной кадр. Поэтому экран не зависнет, даже если сервис упадёт посреди показа. Исключение — `ttl_s = 0` (висящее сообщение): его закрывает только кнопка или `close_overlay`.
-- Пришёл новый основной кадр, пока висит полноэкранный — плата запоминает его и покажет после.
-- **Любое нажатие** закрывает экран и **не** запускает действие кнопки.
-- Памяти хватает: основной кадр (48 КБ) хранится отдельно от буфера экрана (48 КБ).
+- After `ttl_s` the board returns to the base frame **by itself**. So the screen never gets stuck, even if the service goes down mid-show. The exception is `ttl_s = 0` (a sticky message): only a button or `close_overlay` closes it.
+- A new base frame that arrives while a full-screen screen is up is kept and shown afterwards.
+- **Any press** closes the screen and does **not** run the button's action.
+- There is enough memory: the base frame (48 KB) is kept apart from the screen buffer (48 KB).
 
-| Экран | Кто рисует | Откуда вызывается | Длительность по умолчанию |
+| Screen | Drawn by | Triggered by | Default duration |
 |---|---|---|---|
-| **Wi-Fi QR** | Сервис | Действие кнопки, `tablo.show_qr` | 20 с, настраивается |
-| **Сообщение** | Сервис | `tablo.show_message` | 30 с, настраивается |
-| **Висящее сообщение** | Сервис | `tablo.show_message` с `sticky: true` | До нажатия |
-| **Диагностика** | **Прошивка** | Долгое нажатие на 8 | 30 с |
-| **Обновление прошивки** | **Прошивка** | OTA началась / сорвалась | До перезагрузки |
-| **Приветствие после обновления** | Сервис | Номер версии в `hello` сменился | До нажатия |
+| **Wi-Fi QR** | Service | A button action, `tablo.show_qr` | 20 s, configurable |
+| **Message** | Service | `tablo.show_message` | 30 s, configurable |
+| **Sticky message** | Service | `tablo.show_message` with `sticky: true` | Until a press |
+| **Diagnostics** | **Firmware** | Long press on 8 | 30 s |
+| **Firmware update** | **Firmware** | OTA started / failed | Until restart |
+| **Greeting after an update** | Service | The version number in `hello` changed | Until a press |
 
-- **Wi-Fi QR:** одна или несколько сетей рядом (для двух — по ~360×360 px), под каждой название. Строка вида `WIFI:T:WPA;S:<ssid>;P:<пароль>;;`. Сети задаются в HA (§8.3).
-- **Сообщение:** заголовок, текст с переносами, необязательный значок MDI.
-- **Висящее сообщение** — чтобы точно заметить: срочный статус, записка домашним. Отличается от обычного видом: чёрная полоса с заголовком и значком, рамка по краю, внизу время отправки («14:32», не сегодня — «Oct 30, 14:32»: часы поверх полноэкранного кадра не рисуются), «1 of 3», если ждут несколько, и «Press any button to close».
-  - Сервис держит **очередь** (до 20, в SQLite) и показывает самое старое. Нажатие закрывает его — сервис сразу шлёт следующее. Отправитель не пишется: шлёт только владелец.
-  - Перезагрузка платы, обрыв связи, рестарт сервиса сообщение не теряют: после `hello` сервис шлёт его снова. QR или обычное сообщение поверх висящего показываются, а когда закрываются — висящее возвращается.
-  - Закрыто кнопкой → событие HA `tablo_message_dismissed` (`title`, `text`, `sent_at`, `waiting`), на него можно повесить «прочитано». `tablo.clear_messages` очищает очередь и снимает экран (`close_overlay`).
-  - Плата до fw-0.3 закрывает кадр с `ttl_s = 0` сразу (`overlay_closed` `ttl`). Сервис тогда не шлёт его снова, чтобы не зациклиться, и сообщение остаётся в очереди.
-- **Обновление прошивки (OTA):** два пути — `ota` от сервиса, плата сама скачивает образ (основной, с fw-0.7), и espota с Мака (запасной, когда связи с сервисом нет). В начале загрузки плата закрывает WebSocket и останавливает сетевую задачу (буферы TCP возвращаются в кучу, кадр на 48 КБ посреди загрузки не придёт) и рисует «Updating firmware...» с текущей версией — всегда частичным обновлением (0,8 с): espota ждёт подключения платы только 10 с, а полное после `max_partials` занимало 5,5 с из них. Успех — перезагрузка. Ошибка — «Update failed» с причиной и перезагрузка через 10 с: связь остановлена, перезагрузка возвращает всё. Неверный пароль OTA ничего не начинает и экран не трогает.
-- **Приветствие после обновления:** сервис помнит версию каждой платы (`device.fw:<id>` в SQLite). Сменился номер (часть до `+`; пересборка того же номера с другим коммитом не считается) — сразу после `config` и `health`, раньше основного кадра и висящих сообщений, окно с `ttl_s = 0` (кадр, пришедший под окном, плата держит и показывает после него, так приветствие не ждёт лишнего обновления экрана): крупно «Hello!» и «Tablo is on fw-0.5», в левом нижнем углу мелко «What's new» — `notes` из `hello` и «старая → новая». Новая версия записывается, только когда окно закрыто кнопкой: после перезагрузки или обрыва связи оно покажется снова. Заметка — `FW_NOTES` рядом с `FW_NUMBER` в `firmware/src/state.h`, пишется вместе с новым номером.
-- **Диагностика:** IP, уровень Wi-Fi, время работы, версия прошивки, свободная память, связь с сервисом, HA и infomaster (`data` из `health`), время последнего кадра и последней синхронизации (`synced_at` из `health`). Расход LLM здесь не показывается: он в Mini App infomaster. Рисует плата, потому что эта информация нужна как раз тогда, когда сервис не отвечает.
-
+- **Wi-Fi QR:** one or more networks side by side (for two, ~360×360 px each), each with its name below. A string like `WIFI:T:WPA;S:<ssid>;P:<password>;;`. Networks are set in HA (§8.3).
+- **Message:** a title, wrapped text, an optional MDI icon.
+- **Sticky message** — for things that must be noticed: an urgent status, a note for the household. It looks different from a normal one: a black bar with the title and icon, a border around the edge, and at the bottom the time it was sent ("14:32", or "Oct 30, 14:32" if not today: no clock is drawn over a full-screen frame), "1 of 3" if several are waiting, and "Press any button to close".
+  - The service keeps a **queue** (up to 20, in SQLite) and shows the oldest. A press closes it, and the service sends the next one at once. The sender is not shown: only the owner sends them.
+  - A board restart, a dropped link or a service restart do not lose the message: after `hello` the service sends it again. A QR or a normal message is shown over a sticky one, and once it closes the sticky one comes back.
+  - Closed with a button → the HA event `tablo_message_dismissed` (`title`, `text`, `sent_at`, `waiting`), which can drive a "read" mark. `tablo.clear_messages` clears the queue and takes the screen down (`close_overlay`).
+  - Boards before fw-0.3 close a frame with `ttl_s = 0` at once (`overlay_closed` `ttl`). The service then does not send it again, to avoid a loop, and the message stays in the queue.
+- **Firmware update (OTA):** two paths — `ota` from the service, where the board downloads the image itself (the main one, since fw-0.7), and espota from the dev machine (the fallback when there is no link to the service). When the upload starts, the board closes the WebSocket and stops the network task (the TCP buffers go back to the heap, and no 48 KB frame arrives mid-upload) and draws "Updating firmware..." with the current version — always as a partial refresh (0.8 s): espota waits only 10 s for the board to connect, and a full refresh after `max_partials` took 5.5 s of them. Success means a restart. An error shows "Update failed" with the reason and restarts after 10 s: the link is stopped, and the restart brings everything back. A wrong OTA password starts nothing and leaves the screen alone.
+- **Greeting after an update:** the service remembers each board's version (`device.fw:<id>` in SQLite). When the number changes (the part before `+`; a rebuild of the same number from another commit does not count), right after `config` and `health`, before the base frame and sticky messages, comes a window with `ttl_s = 0` (a frame that arrives under the window is kept by the board and shown after it, so the greeting does not wait for an extra refresh): a large "Hello!" and "Tablo is on fw-0.5", and small "What's new" in the bottom left — `notes` from `hello` and "old → new". The new version is saved only once the window is closed with a button: after a restart or a dropped link it shows again. The note is `FW_NOTES` next to `FW_NUMBER` in `firmware/src/state.h`, written together with a new number.
+- **Diagnostics:** IP, Wi-Fi signal, uptime, firmware version, free memory, link to the service, HA and infomaster (`data` from `health`), the time of the last frame and of the last sync (`synced_at` from `health`). LLM usage is not shown here: it lives in infomaster's Mini App. The board draws this screen because the information is needed exactly when the service does not answer.

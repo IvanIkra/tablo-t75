@@ -1,91 +1,91 @@
-# Tablo — софт: источники данных (§7)
+# Tablo — software: data sources (§7)
 
-> Часть проекта софта, индекс — [`docs/README.md`](../README.md). Номера §N сквозные по всем частям.
+> Part of the software design, index in [`docs/README.md`](../README.md). Section numbers §N run through all the parts.
 
-## 7. Источники данных
+## 7. Data sources
 
-С 21.10.2026 Tablo только показывает данные (решения infomaster, р. 35). the university app, почту, чаты Telegram, РУЗ и таблицы оценок собирает отдельный сервис **infomaster** (свой репозиторий, контракт — его `architecture.md`, §8.2): он склеивает дедлайны, разбирает новости и оценки через Haiku, ведёт свои и скрытые дедлайны (Mini App и кнопки форума) и отдаёт готовое. Своего LLM в Tablo нет.
+Since 21.10.2026 Tablo only shows data (infomaster decision 35). The university app, mail, Telegram chats, the timetable and the grade sheets are collected by a separate service, **infomaster** (its own repository, the contract is its `architecture.md`, §8.2): it merges deadlines, parses news and grades with Haiku, keeps own and hidden deadlines (its Mini App and the forum buttons) and serves the result. Tablo has no LLM of its own.
 
-| Блок | Источник | Опрос |
+| Block | Source | Polled |
 |---|---|---|
-| Deadlines | infomaster `GET /api/deadlines` | 1 мин |
-| News | infomaster `GET /api/news` | 1 мин |
-| Grades | infomaster `GET /api/grades` | 1 мин |
-| Сбои блоков | infomaster `GET /api/status` | 1 мин |
-| Classes | лента infomaster `tablo.ics` | 10 мин |
-| Weather | Open-Meteo, Москва | 15 мин |
-| Home | HA WebSocket | Мгновенно |
+| Deadlines | infomaster `GET /api/deadlines` | 1 min |
+| News | infomaster `GET /api/news` | 1 min |
+| Grades | infomaster `GET /api/grades` | 1 min |
+| Block failures | infomaster `GET /api/status` | 1 min |
+| Classes | infomaster's `tablo.ics` feed | 10 min |
+| Weather | Open-Meteo, Moscow | 15 min |
+| Home | HA WebSocket | Instantly |
 
 ### 7.1 infomaster (`sources/infomaster.py`)
 
-- **Адрес:** `infomaster.url`, по умолчанию `http://infomaster:8081` — внутренний порт infomaster, только в его docker-сети `infomaster` (Tablo подключён к ней как к внешней, §12). **Токен:** `Authorization: Bearer <TABLO_INFOMASTER_TOKEN>` (это `API_TOKEN` infomaster, `.env`, §13).
-- Раз в минуту (`infomaster.poll_seconds`) четыре `GET`: `/api/deadlines`, `/api/news`, `/api/grades`, `/api/status`. Каждый ответ — полное текущее состояние, курсоров нет. Каждый удачный ответ сохраняется в `kv` (`infomaster.deadlines`, `.news`, `.grades`, `.status`, с `fetched_at`); ответ, который не разбирается в модель экрана, считается ошибкой и не сохраняется. 401 прерывает круг: токен у всех четырёх один.
-- **infomaster недоступен** (сеть, 401, неверный JSON): блоки показывают сохранённое. Свой статус — `ok_at` (последний круг без ошибок) и `error`. Если самый старый из четырёх сохранённых ответов старше **10 минут**, сервис шлёт плате `health` с `data: false`, и в строке статуса появляется значок `mdi:database-off` (§2, §3.3); ответы пошли — значок уходит.
-- `tablo.refresh_data` и кнопка 8 просто опрашивают сразу: «обновить сейчас» у infomaster нет.
-- **Оценки** (`/api/grades`): новые и изменившиеся за окно infomaster, у каждой работы последнее событие, новые сверху. На экран — `label`, `value` (уже 0–10) и `bonus` в пришедшем порядке. Не помещаются — `+N` в заголовке. Сбой — по таблицам в `grades.sheets` статуса: ошибка у всех — *sheets unavailable*, у части — *N sheet(s) failing* (вместо «no new grades», если оценок нет).
+- **Address:** `infomaster.url`, `http://infomaster:8081` by default — infomaster's internal port, only inside its `infomaster` docker network (Tablo joins it as an external network, §12). **Token:** `Authorization: Bearer <TABLO_INFOMASTER_TOKEN>` (infomaster's `API_TOKEN`, `.env`, §13).
+- Once a minute (`infomaster.poll_seconds`), four `GET`s: `/api/deadlines`, `/api/news`, `/api/grades`, `/api/status`. Each answer is the full current state, with no cursors. Every good answer is saved in `kv` (`infomaster.deadlines`, `.news`, `.grades`, `.status`, with `fetched_at`); an answer that does not parse into the screen model counts as an error and is not saved. A 401 ends the round: all four share one token.
+- **infomaster unreachable** (network, 401, bad JSON): the blocks show what was saved. Its own status is `ok_at` (the last round without errors) and `error`. If the oldest of the four saved answers is older than **10 minutes**, the service sends the board `health` with `data: false`, and the `mdi:database-off` icon appears in the status line (§2, §3.3); once answers come again, the icon goes away.
+- `tablo.refresh_data` and button 8 just poll at once: infomaster has no "refresh now".
+- **Grades** (`/api/grades`): new and changed within infomaster's window, the last event for each piece of work, newest first. The screen gets `label`, `value` (already 0–10) and `bonus` in the order they came. What does not fit becomes `+N` in the header. A failure comes from the sheets in the status's `grades.sheets`: all failing — *sheets unavailable*, some — *N sheet(s) failing* (instead of "no new grades" when there are none).
 
-### 7.2 Дедлайны
+### 7.2 Deadlines
 
-Список из `/api/deadlines` уже склеен, без скрытых и выполненных, отобран и упорядочен так, как его показывает блок: предстоящие по сроку, потом просроченные (3 дня после срока, у почты и Telegram — 1 день). Tablo ничего не фильтрует и не сортирует, только берёт первые строки (сейчас 5 по 22 px); остальное — счётчиком `+N` в заголовке. Срочный (сегодня или завтра) — инверсией, просроченный — с пометкой `overdue`.
+The list from `/api/deadlines` is already merged, without hidden and completed ones, picked and ordered the way the block shows it: upcoming by due date, then overdue (3 days past due, 1 day for mail and Telegram). Tablo neither filters nor sorts, it just takes the first rows (5 at 22 px now); the rest is a `+N` counter in the header. An urgent one (today or tomorrow) is inverted, an overdue one is marked `overdue`.
 
-У каждого дедлайна два признака, оба видны значками слева:
+Each deadline has two attributes, both shown as icons on the left:
 
-| `source` | Откуда (в infomaster) | Значок источника |
+| `source` | Where from (in infomaster) | Source icon |
 |---|---|---|
 | `hseapp` | the university app | `mdi:school` |
-| `mail` | письмо | `mdi:email-outline` |
-| `tg` | чат или канал Telegram | `mdi:send` |
-| `ical` | рубежный контроль из РУЗ (`<abbr> Midterm`) | `mdi:calendar` |
-| `ha` | свой, из Mini App или кнопками форума | `mdi:home-outline` |
+| `mail` | a letter | `mdi:email-outline` |
+| `tg` | a Telegram chat or channel | `mdi:send` |
+| `ical` | an interim assessment from the timetable (`<abbr> Midterm`) | `mdi:calendar` |
+| `ha` | own, from the Mini App or the forum buttons | `mdi:home-outline` |
 
-**Значки категории:** учёба (`study`) — `mdi:book-open-variant`, личное (`personal`) — `mdi:account`. Строка: `[категория][источник] Calc HW 5 … tomorrow`.
+**Category icons:** study (`study`) — `mdi:book-open-variant`, personal (`personal`) — `mdi:account`. A row: `[category][source] Calc HW 5 … tomorrow`.
 
-**Сбои** — по статусу the university app из `/api/status` (`hseapp`), первой строкой блока: `login_needed` — *HSE login needed* (и уведомление HA со ссылкой на бота infomaster, §8.4); `error`, а `ok_at` старше 3 часов или `null` — *the university app unavailable*. `ok_at: null` без ошибки — не сбой: infomaster держит его в памяти, после своего перезапуска он пуст, пока источник не отработает.
+**Failures** come from the university app status in `/api/status` (`hseapp`), as the block's first row: `login_needed` — *HSE login needed* (plus an HA notification with a link to the infomaster bot, §8.4); `error` with `ok_at` older than 3 hours or `null` — *the university app unavailable*. `ok_at: null` without an error is not a failure: infomaster keeps it in memory, so after its restart it is empty until the source runs.
 
-Списков дел в HA больше нет (р. 34): свои дедлайны добавляются и скрываются в Mini App infomaster.
+There are no to-do lists in HA any more (infomaster decision 34): own deadlines are added and hidden in infomaster's Mini App.
 
-### 7.3 Пары — лента `tablo.ics`
+### 7.3 Classes — the `tablo.ics` feed
 
-- Ссылка `http://infomaster:8081/calendar/<CALENDAR_SECRET>/tablo.ics` — без токена, секрет в пути; задаётся в HA (форма «Источники», §8.3) или в `config.local.yaml`. Опрос раз в 10 мин (`ical.poll_minutes`), лента внутренняя и дешёвая. В ней пары РУЗ, консультации и события из чатов, обязательные и необязательные вместе.
-- **Название — `SUMMARY` как есть:** infomaster уже дал короткое английское из своего словаря (бюджет 13 символов). Не влезло — «…».
-- Первая строка `DESCRIPTION` — тип (*Lecture*, *Seminar*, *Consultation*, *Event*, *Interim assessment*), дальше пометки infomaster.
-- **Аудитория:** первая часть `LOCATION` до запятой (`R609`, `109`). Ссылка в `LOCATION` или в описании, или `URL` — `online`. Ничего — пусто.
-- **Пометки** на месте аудитории (`ClassItem.mark`), по старшинству: `STATUS:CANCELLED` — *cancelled* (такие пары показываются, а не пропускаются); строка `Moved from …` в `DESCRIPTION` после типа — *moved* (время в ленте уже новое); `STATUS:TENTATIVE` или `X-INFOMASTER-OPTIONAL:TRUE` — *optional* (необязательное событие, р. 36).
-- **Строка на экране:** `10:00 Algebra R401`, `11:10 Algebra moved`; у *optional* вместо слова — смайлик 15 px.
-- **Какие пары показывать:** до 5 ближайших ещё не закончившихся сегодня (столько строк в блоке; идущая сейчас — обычной строкой), в заголовке *today*. Сегодня больше нет — ближайшего дня с событиями, в заголовке *tomorrow*, день недели (*Tue*) или дата, если до него неделя и больше. Отбор — при каждой перерисовке, раз в минуту, по сохранённой ленте.
-- **Рубежный контроль** — обычное событие ленты; дедлайн `<abbr> Midterm` приходит в `/api/deadlines` с `source: ical`, из ленты Tablo его не делает.
-- **Сбои:** лента не отвечает — остаётся сохранённая. Нет ссылки — *calendar link not set*, сбой дольше 12 часов — *timetable unavailable* (вместо «no classes», если пар нет). Ошибка РУЗ у самого infomaster (`ruz.error`) видна в его теме «Система».
-- `X-INFOMASTER-SOURCE` и `X-INFOMASTER-LINK` пока не читаются: значок источника события — в расширенной версии экрана.
+- The link `http://infomaster:8081/calendar/<CALENDAR_SECRET>/tablo.ics` has no token, the secret is in the path; it is set in HA (the "Sources" form, §8.3) or in `config.local.yaml`. Polled every 10 min (`ical.poll_minutes`): the feed is internal and cheap. It carries timetable classes, consultations and events from chats, required and optional ones together.
+- **The title is `SUMMARY` as is:** infomaster has already given a short English one from its dictionary (a 13-character budget). If it does not fit — "…".
+- The first line of `DESCRIPTION` is the type (*Lecture*, *Seminar*, *Consultation*, *Event*, *Interim assessment*), followed by infomaster's notes.
+- **Room:** the first part of `LOCATION` up to the comma (`R609`, `109`). A link in `LOCATION` or in the description, or a `URL`, means `online`. Nothing means empty.
+- **Marks** in place of the room (`ClassItem.mark`), by priority: `STATUS:CANCELLED` — *cancelled* (such classes are shown, not skipped); a `Moved from …` line in `DESCRIPTION` after the type — *moved* (the time in the feed is already the new one); `STATUS:TENTATIVE` or `X-INFOMASTER-OPTIONAL:TRUE` — *optional* (an optional event, infomaster decision 36).
+- **A row on screen:** `10:00 Algebra R401`, `11:10 Algebra moved`; *optional* gets a 15 px smiley instead of the word.
+- **Which classes to show:** up to 5 of the nearest that have not ended today (as many rows as the block holds; the one going on now is a normal row), with *today* in the header. Nothing left today — the nearest day with events, with *tomorrow*, the weekday (*Tue*) or the date in the header if it is a week or more away. The pick runs on every redraw, once a minute, over the saved feed.
+- **Interim assessment** is a normal feed event; the `<abbr> Midterm` deadline comes in `/api/deadlines` with `source: ical`, Tablo does not make it from the feed.
+- **Failures:** if the feed does not answer, the saved one stays. No link — *calendar link not set*; a failure for over 12 hours — *timetable unavailable* (instead of "no classes" when there are none). A timetable error inside infomaster itself (`ruz.error`) shows in its "System" topic.
+- `X-INFOMASTER-SOURCE` and `X-INFOMASTER-LINK` are not read yet: an event's source icon is for an extended version of the screen.
 
-### 7.4 Погода — Open-Meteo
+### 7.4 Weather — Open-Meteo
 
-- Москва, `55.7558, 37.6173`, часовой пояс `Europe/Moscow`. Без ключа.
-- `current`: температура, «ощущается как», код погоды, день или ночь. `hourly`: `temperature_2m`, `precipitation`, `precipitation_probability`, `weather_code`, `is_day`.
-- Прогноз — 8 часов, начиная с текущего. Запрашиваем 12 часов (`forecast_hours`), ответ храним в базе.
-- Значок: сначала код погоды (снег, гроза, туман). Дождь рисуется, если вероятность ≥ 40%: < 2,5 мм/ч — 1 штрих, 2,5–7,6 — 2, > 7,6 — 3. Иначе облако, солнце или луна (коды 0–1 — ясно, остальное — облако). Для «сейчас» вероятность берётся из текущего часа, а если осадки идут прямо сейчас — дождь рисуется всегда.
-- **Open-Meteo не отвечает:** сохранённый прогноз сдвигается по часам, «сейчас» берётся из прогноза на текущий час. Через **3 часа** без свежего ответа — *no weather*.
-- Настройки: секция `weather` (координаты, `poll_minutes`).
+- Moscow, `55.7558, 37.6173`, time zone `Europe/Moscow`. No key.
+- `current`: temperature, "feels like", weather code, day or night. `hourly`: `temperature_2m`, `precipitation`, `precipitation_probability`, `weather_code`, `is_day`.
+- The forecast is 8 hours starting with the current one. We request 12 hours (`forecast_hours`) and keep the answer in the database.
+- The icon: first the weather code (snow, thunderstorm, fog). Rain is drawn if the probability is ≥ 40%: < 2.5 mm/h — 1 stroke, 2.5–7.6 — 2, > 7.6 — 3. Otherwise a cloud, the sun or the moon (codes 0–1 are clear, the rest are cloud). For "now" the probability comes from the current hour, and if it is raining right now, rain is always drawn.
+- **Open-Meteo does not answer:** the saved forecast shifts with the hours, and "now" comes from the forecast for the current hour. After **3 hours** without a fresh answer — *no weather*.
+- Settings: the `weather` section (coordinates, `poll_minutes`).
 
-### 7.5 Новости
+### 7.5 News
 
-`/api/news` отдаёт живые новости infomaster (не заменённые, не снятые, не скрытые, не старше `ttl_hours`) в порядке ранга: `importance` (1–5) + 1 учебным, при равенстве новее выше. Ровно то, что в закрепе «Новостей» форума. Tablo берёт `full` (до 2 строк колонки), `short` (1 строка), `source` (`tg`, `mail`), `importance`, `study` и укладывает по §7.7. Слева от каждой — значок источника.
+`/api/news` returns infomaster's live news (not replaced, withdrawn, hidden or older than `ttl_hours`) in rank order: `importance` (1–5) + 1 for study items, newer first on a tie. Exactly what is pinned in the forum's "News". Tablo takes `full` (up to 2 lines of the column), `short` (1 line), `source` (`tg`, `mail`), `importance`, `study` and lays them out by §7.7. Each has its source icon on the left.
 
-**Сбой:** разбор пачек у infomaster (`batches` в `/api/status`) с ошибкой, а `ok_at` старше 3 часов или `null` — вместо «no news» строка *news unavailable* (если новостей нет).
+**Failure:** infomaster's batch parsing (`batches` in `/api/status`) has an error and `ok_at` is older than 3 hours or `null` — the row *news unavailable* instead of "no news" (when there are none).
 
-### 7.6 Дом — Home Assistant
+### 7.6 Home — Home Assistant
 
-- Сервис держит WebSocket к HA (`subscribe_entities`), состояния приходят мгновенно. Адрес — `ha.url` в конфиге, токен — `TABLO_HA_TOKEN` в `.env`. Связь пропала — переподключение через 1, 2, 5, 10, 30, 60 с; неверный токен — раз в 5 мин.
-- Блок Home — строки-шаблоны HA (`home.rows`, §8.3), HA сам их считает и присылает новые значения. По умолчанию: температура и влажность (`sensor.room_sensor_temperature` / `_humidity`), «lights N of M», печать.
-- **«lights N of M»** считает 5 светильников с кнопок: потолок, лампа, стол, подсветка, шкаф. Список — в шаблоне строки.
-- **Принтер:** интеграции Klipper в HA сейчас нет. Ставим в HA интеграцию Moonraker и берём статус из её сущностей: прогресс и оставшееся время, строка видна только во время печати. Сервис отдельно в Moonraker не ходит.
-- Фейковый HA (тесты, эмулятор) считает те же шаблоны через jinja2: `states`, `is_state`, `state_attr`, `is_number`, фильтры `round`, `float`, `int`.
-  - Строка: `printing  42% · 1:20` (слово состояния слева, остаток в ч:мм по `unit_of_measurement` датчика), `paused  42%`, `printer  idle` (standby, cancelled), `done`, `error`, `off` (датчик недоступен — хост или принтер выключен). Принтер не задан — строки нет.
-- Тот же канал даёт состояния плиток (§8.2) и выполнение действий (`call_service`): переключение — `homeassistant.toggle` с ожиданием нового состояния, скрипт и сцена — `turn_on` (не ждёт конца скрипта), автоматизация — `trigger`, кнопка — `press`.
-- HA пропал — блок Home и плитки показывают последние известные состояния (§11). До первого списка состояний — *no Home Assistant*.
-- В эмуляторе флажок *fake HA* переключает между подставным домом в памяти и настоящим HA.
+- The service keeps a WebSocket to HA (`subscribe_entities`), so states arrive instantly. The address is `ha.url` in the config, the token is `TABLO_HA_TOKEN` in `.env`. A lost link reconnects after 1, 2, 5, 10, 30, 60 s; a bad token — every 5 min.
+- The Home block is HA template rows (`home.rows`, §8.3): HA renders them itself and sends new values. By default: temperature and humidity (`sensor.room_sensor_temperature` / `_humidity`), "lights N of M", printing.
+- **"lights N of M"** counts the 5 lights on the buttons: ceiling, lamp, desk, backlight, closet. The list is in the row's template.
+- **Printer:** HA has no Klipper integration right now. We install the Moonraker integration in HA and take the status from its entities: progress and time left, and the row is shown only while printing. The service does not talk to Moonraker itself.
+- The fake HA (tests, emulator) renders the same templates with jinja2: `states`, `is_state`, `state_attr`, `is_number`, the `round`, `float`, `int` filters.
+  - A row: `printing  42% · 1:20` (the state word on the left, the time left in h:mm by the sensor's `unit_of_measurement`), `paused  42%`, `printer  idle` (standby, cancelled), `done`, `error`, `off` (the sensor is unavailable — the host or the printer is off). No printer set — no row.
+- The same channel gives the tile states (§8.2) and runs actions (`call_service`): a toggle is `homeassistant.toggle` with a wait for the new state, a script and a scene are `turn_on` (does not wait for the script to finish), an automation is `trigger`, a button is `press`.
+- HA gone — the Home block and the tiles show the last known states (§11). Until the first list of states — *no Home Assistant*.
+- In the emulator the *fake HA* checkbox switches between a stand-in home in memory and the real HA.
 
-### 7.7 Вписывание текста в место
+### 7.7 Fitting text into place
 
-Тексты пишет infomaster: длина пока проверена по символам, не по шрифту Tablo (р. 39). Tablo обрезает лишнее «…». Перенести проверку настоящим рендером (`render/pixelfont.py`) в infomaster — отдельная задача.
+infomaster writes the texts: their length is checked by characters for now, not with Tablo's font (infomaster decision 39). Tablo cuts the extra with "…". Moving the check into infomaster with a real render (`render/pixelfont.py`) is a separate task.
 
-**Укладчик новостей** (`render/screen.py`, `layout_news`): однострочная новость занимает 30 px, двухстрочная — 50 px. Сначала `full` для ранга 5 и выше (учебное, по которому надо действовать), потом по одной строке `short` всем с важностью больше 1, потом `full` остальным по рангу, пока есть место, и в конце важность 1 в остаток.
+**The news packer** (`render/screen.py`, `layout_news`): a one-line item takes 30 px, a two-line one 50 px. First `full` for rank 5 and above (study items that need action), then one `short` line for everything with importance above 1, then `full` for the rest by rank while there is room, and finally importance 1 in what is left.

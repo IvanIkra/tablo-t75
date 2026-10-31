@@ -1,31 +1,31 @@
-# Интеграция Tablo для Home Assistant
+# Tablo integration for Home Assistant
 
-Контракт — [§8](../docs/software/05-ha-integration.md). Проверена на HA 2026.4.4.
+The contract is [§8](../docs/software/05-ha-integration.md). Tested on HA 2026.4.4.
 
-## Установка
+## Installation
 
-1. Скопировать `custom_components/tablo` в `/config/custom_components/tablo` (на `server` это `<HA config>/custom_components/tablo`).
-2. Перезапустить HA.
-3. Настройки → Устройства и службы → Добавить интеграцию → **Tablo T75**: адрес сервиса (`http://192.168.1.50:8765`) и токен API: `TABLO_API_TOKEN` из `.env` сервиса, а если он там не задан — `dev-api-token`. Конфиг сервиса импортируется сам.
-4. Скрипты для долгих нажатий — из [`scripts/tablo.yaml`](scripts/tablo.yaml).
-5. После обновления с версии со списками дел: удалить в HA осиротевшие сущности `todo.tablo_*` и датчики «LLM run: …», «LLM cost today»; в форме «Источники» указать ссылку на `tablo.ics` infomaster и имя его бота.
+1. Copy `custom_components/tablo` to `<HA config>/custom_components/tablo`.
+2. Restart HA.
+3. Settings → Devices & services → Add integration → **Tablo T75**: the service address (`http://<host-ip>:8765`) and the API token — `TABLO_API_TOKEN` from the service's `.env`, or `dev-api-token` if it is not set there. The service's config is imported by itself.
+4. Scripts for long presses are in [`scripts/tablo.yaml`](scripts/tablo.yaml).
+5. After updating from a version with to-do lists: remove the orphaned `todo.tablo_*` entities and the "LLM run: …", "LLM cost today" sensors in HA; in the "Sources" form, set the link to infomaster's `tablo.ics` and its bot name.
 
-Сервису нужен свой долгоживущий токен HA (`TABLO_HA_TOKEN`) от пользователя-администратора: без прав администратора HA не даёт ему публиковать события `tablo_button` и `tablo_changed`.
+The service needs its own long-lived HA token (`TABLO_HA_TOKEN`) from an administrator user: without admin rights HA does not let it fire the `tablo_button` and `tablo_changed` events.
 
-## Что где
+## What is where
 
-| Файл | Что |
+| File | What |
 |---|---|
-| `__init__.py` | Подключение, перевод старых записей (1.1 → 1.2: без настроек источников infomaster), действия `tablo.*` (в том числе `show_message` с `sticky` и `clear_messages`), события `tablo_changed`, уведомление о входе в the university app со ссылкой на бота infomaster |
-| `config_flow.py` | Подключение к сервису и формы «Настроить»: кнопки, Wi-Fi, источники, дом, экран |
-| `forms.py` | Многострочные поля форм ↔ списки конфига |
-| `coordinator.py`, `api.py` | Опрос сервиса и HTTP-клиент |
-| `device_trigger.py` | Триггеры «кнопка N, короткое / долгое» |
-| `binary_sensor.py`, `sensor.py` | «Подключено», уровень Wi-Fi, последняя связь, «Sticky messages» (сколько висящих сообщений ждут, заголовки в атрибуте `messages`) |
+| `__init__.py` | Setup, migration of old entries (1.1 → 1.2: without the infomaster source settings), the `tablo.*` actions (including `show_message` with `sticky` and `clear_messages`), `tablo_changed` events, the university app login notification with a link to the infomaster bot |
+| `config_flow.py` | Connecting to the service and the "Configure" forms: buttons, Wi-Fi, sources, home, screen |
+| `forms.py` | Multi-line form fields ↔ config lists |
+| `coordinator.py`, `api.py` | Polling the service and the HTTP client |
+| `device_trigger.py` | The "button N, short / long" triggers |
+| `binary_sensor.py`, `sensor.py` | "Connected", Wi-Fi signal, last contact, "Sticky messages" (how many sticky messages are waiting, titles in the `messages` attribute) |
 
-## Тесты
+## Tests
 
-Тесты поднимают настоящий сервис с фейковым домом и гоняют интеграцию в тестовом HA.
+The tests start a real service with a fake home and run the integration in a test HA.
 
 ```bash
 python3.14 -m venv .venv && .venv/bin/pip install homeassistant==2026.4.4 pytest-homeassistant-custom-component -e ../service

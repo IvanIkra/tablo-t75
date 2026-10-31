@@ -38,7 +38,7 @@ data sources ──► Python service ──► 48 000-byte 1-bit frame ──�
 | [`firmware/`](firmware/) | ESP32 firmware (PlatformIO + Arduino): frame buffers and diffing, the on-board clock/status/diagnostics, buttons, and over-the-air updates. |
 | [`ha-integration/`](ha-integration/) | A Home Assistant custom component: config forms for buttons, Wi-Fi, sources and screen, device triggers, `tablo.*` services and entities. |
 | [`cad/`](cad/) | The enclosure, modelled in OpenSCAD, with exported STLs and preview renders. |
-| [`docs/`](docs/) | The software design contract, split by area (architecture, protocol, service, sources, HA, firmware, deploy, plan). |
+| [`docs/`](docs/) | The software design contract, split by area (architecture, protocol, service, sources, HA, firmware, deploy, plan), and the [product and hardware](docs/hardware.md) description. |
 | [`presentation/`](presentation/) | Product renders and the project presentation. |
 
 ## Tech stack

@@ -1,18 +1,23 @@
-# Tablo — проект софта (индекс)
+# Tablo — software design (index)
 
-Контракт для сервиса, эмулятора, интеграции Home Assistant и прошивки Tablo T75. Описание продукта и железа — в [`tablo-project.md`](tablo-project.md). Если описания расходятся, верен софтовый документ.
+The contract for the service, the emulator, the Home Assistant integration and the
+Tablo T75 firmware. The product and the hardware are described in
+[`hardware.md`](hardware.md); where the two disagree, the software documents win.
 
-Документ разбит на части, чтобы читать только нужное. Номера §N сквозные, ссылки вида «§3.3» ведут в соответствующую часть. Полная исходная версия — в [`docs/archive/tablo-software.md`](docs/archive/tablo-software.md).
+The design is split into parts so you only read what you need. Section numbers §N run
+through all the parts; a reference like "§3.3" points into the matching part.
 
-Статус на 31.10.2026: этапы 1–8 и 10 готовы (данные дедлайнов, новостей, оценок и пар — от infomaster, §7), прошивка почти готова (§10): живая панель в корпусе, fw-0.5. Железо собрано.
+Status on 31.10.2026: stages 1–8 and 10 are done (deadlines, news, grades and classes
+come from infomaster, §7); the firmware is nearly done (§10): a live panel in its
+enclosure. The hardware is built.
 
-| Часть | Разделы |
+| Part | Sections |
 |---|---|
-| [`01-architecture.md`](software/01-architecture.md) | §1 состав системы, §2 кто что рисует (зоны экрана) |
-| [`02-protocol.md`](software/02-protocol.md) | §3 протокол плата ↔ сервис, §4 кнопки, §5 полноэкранные экраны |
-| [`03-service.md`](software/03-service.md) | §6 сервис: стек, устройство, вёрстка, HTTP API, конфиг |
-| [`04-sources.md`](software/04-sources.md) | §7 источники: infomaster (дедлайны, новости, оценки), пары, погода, дом, вписывание текста |
-| [`05-ha-integration.md`](software/05-ha-integration.md) | §8 интеграция Home Assistant |
-| [`06-emulator-firmware.md`](software/06-emulator-firmware.md) | §9 эмулятор, §10 прошивка |
-| [`07-failures-deploy.md`](software/07-failures-deploy.md) | §11 сбои, §12 развёртывание, §13 секреты |
-| [`08-plan.md`](software/08-plan.md) | §14 структура репозитория, §15 план работ, §16 открытые вопросы |
+| [`01-architecture.md`](software/01-architecture.md) | §1 the system, §2 who draws what (screen zones) |
+| [`02-protocol.md`](software/02-protocol.md) | §3 board ↔ service protocol, §4 buttons, §5 full-screen screens |
+| [`03-service.md`](software/03-service.md) | §6 the service: stack, structure, layout, HTTP API, config |
+| [`04-sources.md`](software/04-sources.md) | §7 sources: infomaster (deadlines, news, grades), classes, weather, home, fitting text |
+| [`05-ha-integration.md`](software/05-ha-integration.md) | §8 Home Assistant integration |
+| [`06-emulator-firmware.md`](software/06-emulator-firmware.md) | §9 emulator, §10 firmware |
+| [`07-failures-deploy.md`](software/07-failures-deploy.md) | §11 failures, §12 deployment, §13 secrets |
+| [`08-plan.md`](software/08-plan.md) | §14 repository layout, §15 work plan, §16 open questions |

@@ -1,70 +1,70 @@
-# Tablo — софт: интеграция Home Assistant (§8)
+# Tablo — software: Home Assistant integration (§8)
 
-> Часть проекта софта, индекс — [`docs/README.md`](../README.md). Номера §N сквозные по всем частям.
+> Part of the software design, index in [`docs/README.md`](../README.md). Section numbers §N run through all the parts.
 
-## 8. Интеграция Home Assistant
+## 8. Home Assistant integration
 
-Собственная интеграция [`ha-integration/custom_components/tablo`](../../ha-integration/README.md). HA настраивает панель: кнопки, дом, экран, ссылку на пары и погоду. Дедлайны, новости и оценки настраиваются в Mini App infomaster (infomaster decision 33); с infomaster HA не связан никак.
+A custom integration, [`ha-integration/custom_components/tablo`](../../ha-integration/README.md). HA sets up the panel: buttons, home, screen, the class feed link and the weather. Deadlines, news and grades are set up in infomaster's Mini App (infomaster decision 33); HA has no link to infomaster at all.
 
-### 8.1 Связь
+### 8.1 Link
 
-- **Подключение:** адрес сервиса и `api_token`. Интеграция берёт текущий конфиг сервиса (`GET /api/config`) — вводить заново ничего не нужно. Секреты (токены) остаются в `.env` сервиса.
-- **Интеграция → сервис:** HTTP API (§6.4) с `api_token`. Каждая форма «Настроить» сразу шлёт полный конфиг; сервис его проверяет, ошибка показывается в форме. При старте HA и после того, как сервис снова ответил, конфиг отправляется ещё раз.
-- **Сервис → HA:** WebSocket API с долгоживущим токеном: состояния, `call_service`, нажатия — событием `tablo_button` (`button`, `press`), изменения — событием `tablo_changed` (`kind: status` при подключении и отключении платы и смене входа в the university app по статусу infomaster, `kind: messages` при смене очереди висящих сообщений), закрытое кнопкой висящее сообщение — событием `tablo_message_dismissed` (§5).
-- **Интеграция** слушает `tablo_button` (триггеры устройства) и `tablo_changed` (сразу перечитывает состояние). Раз в минуту она опрашивает сервис и так: ловит пропущенные события и уровень Wi-Fi.
-- **Вход в the university app протух** (§7.2, `hseapp.login_needed` из статуса infomaster): уведомление HA со ссылкой на бота infomaster `https://t.me/<бот>?start=hseapp`, один раз на каждое изменение. Имя бота — поле «infomaster bot» в форме «Источники»; без него уведомление без ссылки.
-- **Записи, сохранённые до перехода на infomaster** (версия записи 1.1), при загрузке переводятся в 1.2: из конфига убираются `grades`, `hseapp`, `news`, `mail`, `subjects`, иначе сервис отверг бы его как неизвестные ключи.
+- **Connecting:** the service address and the `api_token`. The integration takes the service's current config (`GET /api/config`), so nothing has to be entered again. Secrets (tokens) stay in the service's `.env`.
+- **Integration → service:** the HTTP API (§6.4) with the `api_token`. Every "Configure" form sends the full config at once; the service validates it, and an error shows in the form. The config is sent again when HA starts and after the service answers again.
+- **Service → HA:** the WebSocket API with a long-lived token: states, `call_service`, presses as the `tablo_button` event (`button`, `press`), changes as the `tablo_changed` event (`kind: status` when the board connects or disconnects and when the university app login changes per infomaster's status, `kind: messages` when the sticky message queue changes), and a sticky message closed with a button as the `tablo_message_dismissed` event (§5).
+- **The integration** listens to `tablo_button` (device triggers) and `tablo_changed` (re-reads the state at once). It also polls the service once a minute, which catches missed events and the Wi-Fi signal.
+- **The university app login has expired** (§7.2, `hseapp.login_needed` from infomaster's status): an HA notification with a link to the infomaster bot, `https://t.me/<bot>?start=hseapp`, once per change. The bot name is the "infomaster bot" field in the "Sources" form; without it the notification has no link.
+- **Entries saved before the move to infomaster** (entry version 1.1) are migrated to 1.2 on load: `grades`, `hseapp`, `news`, `mail`, `subjects` are removed from the config, or the service would reject it for unknown keys.
 
-### 8.2 Кнопки 1–7
+### 8.2 Buttons 1–7
 
-Настройки → Устройства → Tablo → «Настроить» → выбор кнопки. Для **короткого** и **долгого** нажатия отдельно:
+Settings → Devices → Tablo → "Configure" → pick a button. Separately for the **short** and the **long** press:
 
-| Поле | Варианты |
+| Field | Options |
 |---|---|
-| Действие | Переключить сущность · Запустить скрипт или сцену · Показать Wi-Fi QR (сети, длительность) · Показать сообщение · Только событие |
-| Сущность | Выбор из списка HA |
-| Значок (у кнопки один) | Стандартный выбор значков HA (`mdi:*`). Пусто — значок сущности |
-| Подсветка плитки (у кнопки одна) | По умолчанию — состояние той же сущности. Можно другую сущность или «никогда» |
+| Action | Toggle an entity · Run a script or scene · Show the Wi-Fi QR (networks, duration) · Show a message · Event only |
+| Entity | A pick from the HA list |
+| Icon (one per button) | The standard HA icon picker (`mdi:*`). Empty — the entity's icon |
+| Tile highlight (one per button) | By default the state of the same entity. Can be another entity or "never" |
 
-- Изменения появляются на экране сразу.
-- **Триггеры устройства** «Tablo: кнопка N, короткое / долгое» — для любых автоматизаций. Срабатывают при любом настроенном действии, включая «только событие». Кнопка 8 тоже публикует события.
+- Changes show on the screen at once.
+- **Device triggers** "Tablo: button N, short / long" for any automation. They fire for any configured action, "event only" included. Button 8 publishes events too.
 
-**Начальные назначения** (пользователь меняет в HA):
+**Initial assignments** (the user changes them in HA):
 
-| # | Значок | Короткое | Долгое |
+| # | Icon | Short | Long |
 |---|---|---|---|
-| 1 | `mdi:power` | Скрипт «включить весь свет» | Скрипт «выключить весь свет» |
-| 2 | `mdi:ceiling-light` | `light.ceiling_light` | Соло: только этот свет |
-| 3 | `mdi:lamp` | `light.desk_lamp` | Яркость по кругу 100 → 40 → 10% |
-| 4 | `mdi:desk` | `light.desk_light` | Соло |
-| 5 | `mdi:led-strip-variant` | `light.desk_backlight` (Tuya, RGB-лента 1 м, не адресная) | Цвет или яркость по кругу |
-| 6 | `mdi:hanger` | `light.closet_light` | Включить и выключить через 5 мин |
-| 7 | `mdi:wifi` | `switch.vpn_ap` | Wi-Fi QR: основная сеть + VPN, 20 с |
-| 8 | `mdi:refresh` | *прошито*: полное обновление | *прошито*: диагностика 30 с |
+| 1 | `mdi:power` | Script "all lights on" | Script "all lights off" |
+| 2 | `mdi:ceiling-light` | `light.ceiling_light` | Solo: only this light |
+| 3 | `mdi:lamp` | `light.desk_lamp` | Brightness cycle 100 → 40 → 10% |
+| 4 | `mdi:desk` | `light.desk_light` | Solo |
+| 5 | `mdi:led-strip-variant` | `light.desk_backlight` (Tuya, 1 m RGB strip, not addressable) | Colour or brightness cycle |
+| 6 | `mdi:hanger` | `light.closet_light` | On, then off after 5 min |
+| 7 | `mdi:wifi` | `switch.vpn_ap` | Wi-Fi QR: the main network + VPN, 20 s |
+| 8 | `mdi:refresh` | *built in*: full refresh | *built in*: diagnostics for 30 s |
 
-«Соло», «яркость по кругу» и таймер — это скрипты HA. Шаблоны — в [`ha-integration/scripts/tablo.yaml`](../../ha-integration/scripts/tablo.yaml): `all_lights_on`, `all_lights_off`, `leaving_home` (свет и VPN-точка, сейчас ни на одной кнопке), `solo_ceiling` и `solo_desk` (через общий `solo_light`), `lamp_brightness_cycle` (100 → 40 → 10%), `backlight_color_cycle` (тёплый → красный → зелёный → синий → фиолетовый), `closet_5min`.
+"Solo", "brightness cycle" and the timer are HA scripts. Templates are in [`ha-integration/scripts/tablo.yaml`](../../ha-integration/scripts/tablo.yaml): `all_lights_on`, `all_lights_off`, `leaving_home` (lights and the VPN access point, not on any button now), `solo_ceiling` and `solo_desk` (through a shared `solo_light`), `lamp_brightness_cycle` (100 → 40 → 10%), `backlight_color_cycle` (warm → red → green → blue → purple), `closet_5min`.
 
-### 8.3 Остальные настройки
+### 8.3 Other settings
 
-Списки в формах — многострочные поля, одна запись на строку, поля через `|`.
+Lists in the forms are multi-line fields, one entry per line, fields separated by `|`.
 
-- **Wi-Fi сети** для QR: `SSID | пароль | WPA | hidden` (защита WPA, WEP или nopass; `hidden` — только для скрытой сети).
-- **Источники:** ссылка на ленту пар infomaster (`…/calendar/<CALENDAR_SECRET>/tablo.ics`), координаты погоды и имя бота infomaster (для ссылки в уведомлении о входе в the university app; хранится в интеграции, в сервис не уходит). Когда меняется ссылка или координаты, сервис опрашивает источник сразу. Всё остальное — the university app, ФИО и таблицы оценок, чаты, срок жизни новостей, почта, словарь предметов — в Mini App infomaster.
-- **Дом:** строки `подпись | шаблон HA`, по одной на строку, до 5 строк (столько помещается в блок). Значение считает сам HA: сервис подписывается на каждый шаблон через `render_template` по WebSocket и получает новый результат, когда меняются сущности внутри шаблона. Пустой результат — строки нет, например «printing» видна только во время печати. Без подписи (`| шаблон`) значение начинается от левого края, как «21.4° · 42%». Подпись — всё до первой `|`, если там нет `{`; иначе вся строка считается шаблоном. Синтаксис шаблонов HA проверяет при сохранении формы, а строка с ошибкой при выводе на экран не показывается. По умолчанию три строки (температура и влажность, «lights N of M», печать), в `service/config.yaml`; старые поля датчиков, света и принтера сервис сам переводит в эти строки.
-- **Экран:** `semester_start`, время ночного полного обновления, режим шрифта, тема (тёмная по умолчанию или светлая), порог долгого нажатия, время QR и сообщения.
+- **Wi-Fi networks** for the QR: `SSID | password | WPA | hidden` (WPA, WEP or nopass security; `hidden` only for a hidden network).
+- **Sources:** infomaster's class feed link (`…/calendar/<CALENDAR_SECRET>/tablo.ics`), the weather coordinates and the infomaster bot name (for the link in the university app login notification; it is kept in the integration and never goes to the service). When the link or the coordinates change, the service polls the source at once. Everything else — the university app, the student name and the grade sheets, chats, the news lifetime, mail, the subject dictionary — is in infomaster's Mini App.
+- **Home:** `label | HA template` rows, one per line, up to 5 rows (as many as the block holds). HA itself computes the value: the service subscribes to each template via `render_template` over the WebSocket and gets a new result whenever the entities inside the template change. An empty result means no row — for example, "printing" is only shown while printing. Without a label (`| template`) the value starts at the left edge, like "21.4° · 42%". The label is everything up to the first `|` if there is no `{` in it; otherwise the whole line counts as a template. HA checks the template syntax when the form is saved, and a row with an error is not shown on screen. By default there are three rows (temperature and humidity, "lights N of M", printing), in `service/config.yaml`; the service converts the old sensor, light and printer fields into these rows itself.
+- **Screen:** `semester_start`, the time of the nightly full refresh, the font mode, the theme (dark by default, or light), the long-press threshold, the QR and message durations.
 
-Пустой значок кнопки — значок сущности из HA, а если его нет — значок её домена (`light` → `mdi:lightbulb`).
+An empty button icon means the entity's icon from HA, and if it has none, its domain's icon (`light` → `mdi:lightbulb`).
 
-### 8.4 Действия и сущности
+### 8.4 Actions and entities
 
-| Действие | Параметры |
+| Action | Parameters |
 |---|---|
-| `tablo.show_qr` | `networks`, `duration` (20 с) |
-| `tablo.show_message` | `title`, `text`, `icon`, `duration` (30 с), `sticky` (висит до нажатия, §5) |
-| `tablo.clear_messages` | — (очистить висящие сообщения) |
+| `tablo.show_qr` | `networks`, `duration` (20 s) |
+| `tablo.show_message` | `title`, `text`, `icon`, `duration` (30 s), `sticky` (stays until a press, §5) |
+| `tablo.clear_messages` | — (clear the sticky messages) |
 | `tablo.full_refresh` | — |
-| `tablo.refresh_data` | `sources` (необязательно): `infomaster`, `ical`, `weather` |
+| `tablo.refresh_data` | `sources` (optional): `infomaster`, `ical`, `weather` |
 
-Сущности: `binary_sensor` «подключено», `sensor` уровень Wi-Fi, `sensor` время последней связи (оба последних помнят значение и после отключения платы), `sensor` «Sticky messages» — сколько висящих сообщений ждут, в атрибуте `messages` их заголовки и время. `select` «Theme» (`dark` / `light`) — тема панели для дашборда и автоматизаций: шлёт конфиг сервису и сохраняет его в настройках записи, как форма «Экран».
+Entities: a "connected" `binary_sensor`, a Wi-Fi signal `sensor`, a last-contact time `sensor` (both keep their value after the board disconnects), and a "Sticky messages" `sensor` — how many sticky messages are waiting, with their titles and times in the `messages` attribute. A "Theme" `select` (`dark` / `light`) — the panel theme for dashboards and automations: it sends the config to the service and saves it in the entry's options, like the "Screen" form.
 
-Списков дел «Tablo · Study» / «Tablo · Personal» и датчиков LLM больше нет (р. 34, р. 40): свои и скрытые дедлайны — в Mini App infomaster, расход LLM — на его экране «Расход LLM». Оставшиеся от них сущности после обновления интеграции удаляются в HA вручную.
+The "Tablo · Study" / "Tablo · Personal" to-do lists and the LLM sensors are gone (infomaster decisions 34 and 40): own and hidden deadlines are in infomaster's Mini App, LLM usage is on its "LLM usage" screen. Entities left from them are removed in HA by hand after the integration update.

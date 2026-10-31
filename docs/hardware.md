@@ -1,290 +1,230 @@
-# Tablo — e-ink панель для стола и стены
+# Tablo — an e-ink panel for the desk and the wall
 
-Настольная (или настенная) e-ink панель 7.5″, которая одним взглядом показывает день: время, погоду на ближайшие часы, дедлайны, новости, оценки, расписание пар и состояние дома. Под экраном — 8 механических кнопок для управления домом через Home Assistant.
+A 7.5″ e-ink panel for the desk (or the wall) that shows the day at a glance: the time, the weather for the next hours, deadlines, news, grades, the class schedule and the state of the home. Under the screen there are 8 mechanical buttons that control the home through Home Assistant.
 
-Рабочее название — **Tablo**, модель **T75**. Статус на 31.10.2026: корпус напечатан и собран, панель работает с прошивкой fw-0.5; сервис в Docker на домашнем сервере, данные от infomaster, интеграция с Home Assistant. Подробный статус софта — в `tablo-software.md`.
+The working name is **Tablo**, model **T75**. Status on 31.10.2026: the enclosure is printed and assembled, the panel runs the firmware; the service runs in Docker on a home server, the data comes from infomaster, and Home Assistant is integrated. The detailed software status is in [`README.md`](README.md).
 
-![Tablo на столе](../presentation/r3/tablo-hero-en.png)
-
----
-
-## Содержание
-
-1. [Что умеет](#что-умеет)
-2. [Экран](#экран)
-3. [Кнопки](#кнопки)
-4. [Железо](#железо)
-5. [Корпус](#корпус)
-6. [Как устроен софт](#как-устроен-софт)
-7. [Данные](#данные)
-8. [Закупка](#закупка)
-9. [Файлы проекта](#файлы-проекта)
-10. [Что дальше](#что-дальше)
-11. [История решений](#история-решений)
+![Tablo on a desk](../presentation/r3/tablo-hero-en.png)
 
 ---
 
-## Что умеет
+## Contents
 
-- **Всё за один взгляд:** время и дата, погода сейчас и на 8 часов вперёд, ближайшие дедлайны, выжимка новостей, свежие оценки, ближайшие пары и состояние дома.
-- **8 кнопок для дома.** Свет, сцены, любые действия в Home Assistant. Назначения меняются в HA, без перепрошивки, значок над кнопкой меняется сам.
-- **Видно, что включено.** Залитая плашка над кнопкой — устройство включено. После нажатия плашка перерисовывается примерно за 0,3 с, без мигания экрана.
-- **Бумага, а не монитор.** E-ink не светит и не мерцает, читается как распечатка.
-- **На стену или на стол.** Плоский корпус вешается на два шурупа. Для стола есть съёмная задняя ножка под 15°, спереди её не видно.
-- **Работает постоянно от USB-C.** Часы и строка статуса обновляются раз в минуту, данные и дом — сразу при изменении.
+1. [What it does](#what-it-does)
+2. [Screen](#screen)
+3. [Buttons](#buttons)
+4. [Hardware](#hardware)
+5. [Enclosure](#enclosure)
+6. [How the software works](#how-the-software-works)
+7. [Bill of materials](#bill-of-materials)
+8. [Decision log](#decision-log)
 
 ---
 
-## Экран
+## What it does
 
-Good Display **GDEY075T7**: 7.5″, 800×480, чёрно-белый, горизонтально. Раскладка сверстана в настоящих пикселях экрана: основной текст 16 px, часы 64 px.
+- **Everything at a glance:** the time and date, the weather now and for 8 hours ahead, the nearest deadlines, a news digest, fresh grades, the next classes and the state of the home.
+- **8 buttons for the home.** Lights, scenes, any action in Home Assistant. Assignments change in HA without reflashing, and the icon above the button changes by itself.
+- **You can see what is on.** A filled tile above a button means the device is on. After a press the tile is redrawn in a fraction of a second, without the screen flashing.
+- **Paper, not a monitor.** E-ink neither glows nor flickers and reads like a printout.
+- **On the wall or on the desk.** The flat enclosure hangs on two screws. For the desk there is a removable back leg at 15°, invisible from the front.
+- **Always on, from USB-C.** The clock and the status line update once a minute, the data and the home as soon as they change.
 
-![Разметка экрана](../presentation/r3/tablo-front-en.png)
+---
 
-### Сетка
+## Screen
 
-| Зона | Что показывает | Детали |
+Good Display **GDEY075T7**: 7.5″, 800×480, black and white, landscape. The layout is designed in the screen's real pixels: body text 16 px, the clock 64 px.
+
+![Screen layout](../presentation/r3/tablo-front-en.png)
+
+### Grid
+
+| Zone | What it shows | Details |
 |---|---|---|
-| **Шапка, слева** | Время крупно и дату строкой под ним | «Wed, Oct 14 · wk 7». Время рисует сама прошивка, раз в минуту |
-| **Шапка, бокс погоды** | Значок, температуру сейчас, «ощущается как» | |
-| **Строка статуса** (правый верхний угол) | Сигнал Wi-Fi, связь с сервисом, связь с Home Assistant, время последней синхронизации | Пока всё в порядке, строка тихая. При сбое она превращается в чёрную плашку «offline since HH:MM». Рисует прошивка, а не сервис: сервис не может сообщить о собственном падении, а уровень Wi-Fi знает только плата |
-| **Полоса прогноза** (под строкой статуса) | 8 колонок, начиная с текущего часа: час, значок, температура | См. «Погода» ниже |
-| **Deadlines** | 3 ближайших дедлайна с датой | Срочный (завтра) выделен инверсией |
-| **Grades** | 3 последние оценки | По 10-балльной шкале, без выделения |
-| **News** | Короткая выжимка, 3 новости | Делает LLM на сервисе |
-| **Classes** | 3 ближайшие пары | Вечером показывает пары на завтра |
-| **Home** | Температура и влажность, сколько горит света, статус 3D-принтера | Из Home Assistant |
-| **Ряд кнопок** | 8 значков без подписей, точно над физическими кнопками | Залитая плашка — устройство включено |
+| **Header, left** | The time in large digits and the date on a line below | "Wed, Oct 14 · wk 7". The firmware draws the time itself, once a minute |
+| **Header, weather box** | An icon, the temperature now, "feels like" | |
+| **Status line** (top right corner) | Wi-Fi signal, link to the service, link to Home Assistant | Quiet while all is well. On a failure it turns into a black "offline since HH:MM" badge. The firmware draws it, not the service: the service cannot report its own failure, and only the board knows the Wi-Fi signal |
+| **Forecast strip** (under the status line) | 8 columns starting with the current hour: hour, icon, temperature | See "Weather" below |
+| **Deadlines** | The nearest deadlines with their dates | An urgent one is inverted |
+| **Grades** | The latest grades | On a 10-point scale |
+| **News** | A short digest | Prepared by infomaster |
+| **Classes** | The next classes | In the evening it shows tomorrow's |
+| **Home** | Temperature and humidity, how many lights are on, the 3D printer status | From Home Assistant |
+| **Button row** | 8 icons without labels, exactly above the physical buttons | A filled tile means the device is on |
 
-### Погода
+### Weather
 
-- В каждой колонке полосы: час → компактный значок → температура. Столбиков и процентов нет.
-- Значки нарисованы одной линией и стоят на одном уровне:
-  - солнце — ясно днём;
-  - луна — ясно ночью;
-  - облако — облачно;
-  - облако с 1, 2 или 3 штрихами — слабый, умеренный или сильный дождь.
-- Сила дождя считается по количеству осадков из Open-Meteo: меньше 2,5 мм/ч — один штрих, 2,5–7,6 — два, больше — три. Дождь рисуется, только если его вероятность примерно 40% и выше, иначе неуверенный прогноз выглядел бы как ливень.
-- Расширяется кодом погоды из прогноза: снег, гроза, туман.
+- Each column of the strip: hour → a compact icon → temperature. No bars, no percentages.
+- The icons are drawn with a single line and sit on one level:
+  - sun — clear by day;
+  - moon — clear by night;
+  - cloud — cloudy;
+  - cloud with 1, 2 or 3 strokes — light, moderate or heavy rain.
+- The rain strength comes from Open-Meteo's precipitation: under 2.5 mm/h is one stroke, 2.5–7.6 two, more — three. Rain is drawn only if its probability is about 40% or higher; otherwise an uncertain forecast would look like a downpour.
+- The weather code from the forecast adds snow, thunderstorm and fog.
 
-### Обновление экрана
+### Screen refresh
 
-- **Частичное обновление** (0,3 с): часы и строка статуса раз в минуту, плашки кнопок после нажатия, данные при изменении.
-- **Полное обновление** (3 с, с миганием): раз в час или ночью, чтобы стереть остаточные следы изображения.
+- **Partial refresh** (well under a second): the clock and the status line once a minute, the button tiles after a press, the data when it changes.
+- **Full refresh** (a few seconds, with flashing): at night and after a series of partial ones, to wipe the remaining ghosting. Measured timings are in [§3.4 and §10](software/06-emulator-firmware.md).
 
 ---
 
-## Кнопки
+## Buttons
 
-- **8 × Kailh Choc v1 Brown** — низкопрофильные тактильные свитчи. Тактильные выбраны потому, что отклик экрана не мгновенный, и палец должен сам почувствовать, что нажатие прошло.
-- **Шаг 20,4 мм**, ровно ширина экрана, поделённая на 8: каждая кнопка точно под своим значком.
-- **Колпачки печатные, «таблетки» 16,4 × 12 мм**, в цвет корпуса, без надписей: подписи живут на экране. Стоят вровень с корпусом и при нажатии утапливаются на ~2,8 мм. У первой кнопки («всё выкл») вогнутая метка, чтобы находить её на ощупь.
-- **Свитчи спрятаны под лицевую панель.** Наружу выходят только колпачки через вырезы той же формы с фаской 0,5 мм.
+- **8 × Kailh Choc v1 Brown** — low-profile tactile switches. Tactile ones were chosen because the screen's response is not instant, and the finger should feel that the press went through.
+- **20.4 mm pitch**, exactly the screen width divided by 8: each button sits right under its icon.
+- **Printed "pill" keycaps, 16.4 × 12 mm**, in the enclosure colour, without legends: the labels live on the screen. They sit flush with the enclosure and sink ~2.8 mm when pressed. The first button ("all off") has a concave mark so it can be found by touch.
+- **The switches are hidden under the front panel.** Only the keycaps come out, through cut-outs of the same shape with a 0.5 mm chamfer.
 
-### Назначения по умолчанию
+### Default assignments
 
-| # | Значок | Действие | Сущность Home Assistant |
+| # | Icon | Action | Home Assistant entity |
 |---|---|---|---|
-| 1 | power | Выключить весь свет | скрипт в HA (сделать) |
-| 2 | bulb | Потолочный свет | `light.ceiling_light` (Sonoff) |
-| 3 | lamp | Лампа | `light.desk_lamp` (Yeelight) |
-| 4 | desk | Стол | `light.desk_light` (Tuya) |
-| 5 | sparkles | Подсветка | `light.desk_backlight` (Tuya) |
-| 6 | hanger | Шкаф | `light.closet_light` (Sonoff) |
-| 7 | wifi | VPN-точка доступа | `switch.vpn_ap` |
-| 8 | refresh | Обновить экран | на сервисе |
+| 1 | power | All lights off | an HA script |
+| 2 | bulb | Ceiling light | `light.ceiling_light` (Sonoff) |
+| 3 | lamp | Lamp | `light.desk_lamp` (Yeelight) |
+| 4 | desk | Desk | `light.desk_light` (Tuya) |
+| 5 | sparkles | Backlight | `light.desk_backlight` (Tuya) |
+| 6 | hanger | Closet | `light.closet_light` (Sonoff) |
+| 7 | wifi | VPN access point | `switch.vpn_ap` |
+| 8 | refresh | Refresh the screen | built into the firmware |
 
-Свет Tuya в HA управляется через облако, поэтому откликается медленнее, чем Sonoff по локальной сети. При желании на каждую кнопку можно повесить и долгое нажатие — это ещё 8 действий.
+Tuya lights are controlled through the cloud in HA, so they respond more slowly than Sonoff over the local network. Every button can also have a long press — 8 more actions.
 
 ---
 
-## Железо
+## Hardware
 
-| Компонент | Что | Ключевые размеры |
+| Component | What | Key dimensions |
 |---|---|---|
-| Экран | Good Display GDEY075T7, 7.5″ 800×480 ч/б, 24-pin FPC | Контур 170,2 × 111,2 × 1,25 мм; рабочая область 163,2 × 97,92 мм; от верхнего края до рабочей области 3,49 мм; шлейф снизу, его центр в 79,9 мм от правого края (если смотреть спереди), ширина 12,5 мм, длина 24 мм; частичное обновление 0,3 с, полное 3 с; 3,3 В |
-| Плата | Good Display ESP32-L(C02), ESP32-WROOM, Type-C, ползунковый выключатель, кнопка сброса | 70 × 54 мм. Гнёзда-разъёмы выпаиваются, плата становится около 5–6 мм |
-| Переходник | Good Display DESPI-C02 | 41 × 22 мм. Соединяется с платой 8 проводами вместо гнезда P5 |
-| Кнопки | 8 × Kailh Choc v1 Brown | Вырез в пластине 13,8 мм, пластина 1,3 мм |
-| Питание | USB-C в разъём самой платы, 5 В | Любой блок питания USB на 5 В от 1 А |
+| Screen | Good Display GDEY075T7, 7.5″ 800×480 b/w, 24-pin FPC | Outline 170.2 × 111.2 × 1.25 mm; active area 163.2 × 97.92 mm; 3.49 mm from the top edge to the active area; the FPC at the bottom, its centre 79.9 mm from the right edge (seen from the front), 12.5 mm wide, 24 mm long; 3.3 V |
+| Board | Good Display ESP32-L(C02), ESP32-WROOM, Type-C, slide switch, reset button | 70 × 54 mm. With the header sockets desoldered the board is about 5–6 mm thick |
+| Adapter | Good Display DESPI-C02 | 41 × 22 mm. Connected to the board with 8 wires instead of the P5 socket |
+| Buttons | 8 × Kailh Choc v1 Brown | 13.8 mm plate cut-out, 1.3 mm plate |
+| Power | USB-C into the board's own connector, 5 V | Any 5 V USB power supply from 1 A |
 
-Размеры экрана взяты с чертежа производителя. Размеры платы и переходника — со страницы продавца. Положение Type-C и выключателя на плате оценено по фото и требует замера.
+The screen dimensions come from the manufacturer's drawing; the board and adapter dimensions from the seller's page, checked on the real parts.
 
 ---
 
-## Корпус
+## Enclosure
 
-Параметрическая модель в OpenSCAD, все размеры в одном файле: [`../cad/tablo.scad`](../cad/tablo.scad). Подробная инструкция по печати и сборке: [`../cad/README.md`](../cad/README.md).
+A parametric OpenSCAD model with all dimensions in one file: [`../cad/tablo.scad`](../cad/tablo.scad). Detailed printing and assembly instructions: [`../cad/README.md`](../cad/README.md).
 
-![В разобранном виде](../presentation/r3/tablo-exploded-en.png)
+![Exploded view](../presentation/r3/tablo-exploded-en.png)
 
-### Габариты и внешний вид
+### Size and look
 
-- **185 × 146 × 17 мм**, плоский, тёмный пластик.
-- **Фаски:** по переднему краю 1,5 мм, по краю крышки 1 мм, на вырезах клавиш 0,5 мм.
-- **Правый торец** (если смотреть спереди): вырез под Type-C платы и прорезь к выключателю питания.
-- **Сзади:** два отверстия для крепления на стену, 4 потайных винта, вентиляционные прорези над платой.
+- **185 × 146 × 17 mm**, flat, dark plastic.
+- **Chamfers:** 1.5 mm on the front edge, 1 mm on the cover edge, 0.5 mm on the key cut-outs.
+- **Right end** (seen from the front): a cut-out for the board's Type-C and a slot to the power switch.
+- **Back:** two holes for wall mounting, 4 countersunk screws, ventilation slots over the board.
 
-| На стене | На столе | Сзади |
+| On the wall | On the desk | Back |
 |---|---|---|
 | ![](../presentation/r3/tablo-wallphoto-en.png) | ![](../presentation/r3/tablo-deskcable-en.png) | ![](../presentation/r3/tablo-bodyback-en.png) |
 
-### Печатные детали
+### Printed parts
 
-| Деталь | Файл | Ориентация при печати | Заметки |
+| Part | File | Print orientation | Notes |
 |---|---|---|---|
-| Пробник клавиш | `stl/tablo-key_test.stl` | как есть | **Печатать первым.** Кусок стенки и пластины на 2 клавиши, плюс одно отверстие под закладную |
-| Передняя часть | `stl/tablo-front.stl` | лицом вниз | Окно экрана, направляющие панели, карманы под свитчи, бобышки, вырезы портов |
-| Пластина свитчей | `stl/tablo-key_plate.stl` | плашмя | 1,3 мм, заполнение 100%. Отдельная деталь, потому что верх свитча (15 × 15 мм) не пролезает в вырез под колпачок |
-| Задняя крышка | `stl/tablo-back.stl` | наружной стороной вниз | Отверстия для стены, клипсы платы, площадка переходника, вентиляция |
-| Задняя ножка | `stl/tablo-leg.stl` | планкой вниз | Для стола, наклон 15° |
-| Колпачки | `stl/tablo-keycap.stl` × 7, `stl/tablo-keycap_dimple.stl` × 1 | верхом вниз | Слой 0,12 мм |
+| Key test | `stl/tablo-key_test.stl` | as is | **Print first.** A piece of wall and plate for 2 keys, plus one hole for a heat-set insert |
+| Front | `stl/tablo-front.stl` | face down | Screen window, panel guides, switch pockets, bosses, port cut-outs |
+| Switch plate | `stl/tablo-key_plate.stl` | flat | 1.3 mm, 100% infill. A separate part because the top of a switch (15 × 15 mm) does not pass through the keycap cut-out |
+| Back cover | `stl/tablo-back.stl` | outside down | Wall holes, board clips, the adapter pad, ventilation |
+| Back leg | `stl/tablo-leg.stl` | bar down | For the desk, 15° tilt |
+| Keycaps | `stl/tablo-keycap.stl` × 7, `stl/tablo-keycap_dimple.stl` × 1 | top down | 0.12 mm layers |
 
-PLA или PETG, слой 0,2 мм, 3 периметра, без поддержек.
+PLA or PETG, 0.2 mm layers, 3 perimeters, no supports.
 
-### Внутри
+### Inside
 
-- **Экран** приклеен тонким двусторонним скотчем к рамке окна и уложен между направляющими. Шлейф загибается назад, под экраном оставлено 3 мм на изгиб.
-- **Плата** защёлкивается в клипсы задней крышки компонентами к крышке. Край с Type-C прижат к правой стенке, так что кабель втыкается прямо в плату. Упор с противоположной стороны принимает усилие, когда втыкаешь кабель. Отверстия платы не используются, потому что их положение неизвестно.
-- **Переходник** приклеен на скотч на площадку крышки, рядом с выходом шлейфа.
-- **Свитчи** защёлкиваются в пластину, а пластина прикручивается изнутри в блок под клавишами.
+- **The screen** is stuck with thin double-sided tape to the window frame and sits between the guides. The FPC bends backwards, with 3 mm left under the screen for the bend.
+- **The board** snaps into the back cover's clips, components facing the cover. The Type-C edge is pressed against the right wall, so the cable plugs straight into the board. A stop on the opposite side takes the force of plugging in the cable. The board's mounting holes are not used.
+- **The adapter** is taped to the cover's pad, next to where the FPC comes out.
+- **The switches** snap into the plate, and the plate is screwed from the inside into the block under the keys.
 
-### Крепёж (куплен)
+### Fasteners
 
-| Что | Сколько | Куда |
+| What | How many | Where |
 |---|---|---|
-| Закладная гайка M2.5 × 3 × 4 (длина 3, диаметр 4) | 7 из 20 | 4 в угловые бобышки, 3 в блок под клавишами (отверстие 3,6 мм) |
-| Винт M2.5 × 8, потай, DIN 965 | 4 из 25 | Задняя крышка |
-| Винт M2.5 × 6, цилиндрическая головка, Torx | 3 из 10 | Пластина свитчей. На пластине площадки 1,7 мм, чтобы винт закончился ровно в закладной |
-| Два шурупа Ø4, головка до 8,5 мм | 2 | На стену или в ножку (головки торчат на 2,8 мм) |
+| M2.5 × 3 × 4 heat-set insert (length 3, diameter 4) | 7 | 4 in the corner bosses, 3 in the block under the keys (3.6 mm hole) |
+| M2.5 × 8 countersunk screw, DIN 965 | 4 | Back cover |
+| M2.5 × 6 cylinder-head Torx screw | 3 | Switch plate. The plate has 1.7 mm pads so the screw ends right in the insert |
+| Two Ø4 wood screws, head up to 8.5 mm | 2 | Into the wall or into the leg (the heads stick out 2.8 mm) |
 
-### Стена и стол
+### Wall and desk
 
-- **Стена:** два шурупа в стену, корпус надевается отверстиями и опускается вниз. Кабель с Г-образной вилкой уходит с правого торца вниз.
-- **Стол:** задняя ножка как у фоторамки. Те же два шурупа вкручиваются в её планку с выступом 2,8 мм, головки входят в отверстия корпуса, ножка сдвигается вверх в замок. Корпус стоит на нижнем торце под 15° и давит на ножку своим весом. Нажатия кнопок тоже давят назад, в ножку. Спереди ножку не видно.
+- **Wall:** two screws in the wall; the enclosure goes onto them by its holes and slides down. A cable with a right-angle plug leaves the right end downwards.
+- **Desk:** a back leg like a photo frame's. The same two screws go into its bar, sticking out 2.8 mm, the heads enter the enclosure's holes, and the leg slides up into the lock. The enclosure stands on its bottom end at 15° and leans on the leg with its weight. Button presses also push back into the leg. The leg is not visible from the front.
 
-### Что измерить перед печатью корпуса
+### What to measure before printing the enclosure
 
-1. **Пробник:** свитч защёлкивается в пластине и не болтается (`choc_cut`). Колпачок стоит вровень с лицевой стороной и проходит полный ход (`stem_top_rest`, `house_above_plate`). Колпачок плотно сидит на ножках (`stem_w`, `stem_dx`). Закладная вплавляется ровно (`insert_d`).
-2. **Плата** после выпаивания разъёмов: самая высокая деталь (`comp_h`), центр Type-C и выключателя от нижнего края (`usbc_from_bottom`, `switch_from_bottom`).
-3. **Экран:** шлейф снизу, центр в 79,9 мм от правого края (`fpc_from_right`).
+1. **Key test:** the switch snaps into the plate without play (`choc_cut`). The keycap sits flush with the front and travels the full stroke (`stem_top_rest`, `house_above_plate`). The keycap sits tight on the stems (`stem_w`, `stem_dx`). The insert melts in straight (`insert_d`).
+2. **The board** after desoldering the sockets: the tallest component (`comp_h`), the centre of the Type-C and the switch from the bottom edge (`usbc_from_bottom`, `switch_from_bottom`).
+3. **The screen:** the FPC at the bottom, its centre 79.9 mm from the right edge (`fpc_from_right`).
 
----
+To rebuild a part:
 
-## Как устроен софт
-
-Умный сервер и простое устройство. Всё тяжёлое делает отдельный сервис на домашнем сервере рядом с Home Assistant. Устройство только показывает готовую картинку, само рисует часы и строку статуса и передаёт нажатия кнопок.
-
-> Подробный проект софта (протокол, источники данных, интеграция HA, эмулятор, план работ) — в [`tablo-software.md`](tablo-software.md). Где он расходится с этим разделом, верен он.
-
-```
-Open-Meteo ─┐
-Календарь ──┤                         ┌──── кадр 800×480 ────▶ Tablo (ESP32-L)
-Портал вуза ┼──▶  Сервис Tablo  ──────┤                         · часы, строка статуса
-RSS + LLM ──┘    (домашний сервер)    └◀─── нажатия кнопок ───  · 8 кнопок
-                     ▲    │
-                     │    ▼
-                  Home Assistant (свет, датчики)
-```
-
-### Сервис (на домашнем сервере, рядом с HA)
-
-- **Собирает и кэширует данные** по расписанию: погода, календарь, оценки, новости. Дом — из API Home Assistant, сразу при изменении.
-- **Рисует кадр 800×480 в ч/б.** Раскладка вёрстается как HTML и снимается в PNG (или сразу в битовую карту). Кадр можно открыть в браузере для отладки.
-- **Хранит назначения кнопок** и состояние плашек. Получает нажатие («кнопка 3, коротко»), вызывает нужное действие в HA и отдаёт обновлённую полосу кнопок.
-
-### Прошивка (ESP32-L)
-
-- Скачивает кадр по сети и выводит его через частичное обновление (например, библиотекой GxEPD2, в которой есть GDEY075T7).
-- **Сама рисует** часы (время по NTP) и строку статуса раз в минуту, тоже частичным обновлением.
-- **Полное обновление** раз в час или ночью.
-- **Кнопки** опрашивает с подавлением дребезга: короткое и долгое нажатие, отправка сервису, быстрая перерисовка полосы кнопок.
-- Питание постоянное от USB, без сна.
-
----
-
-## Данные
-
-| Блок | Источник | Статус |
-|---|---|---|
-| Погода | Open-Meteo: почасовая температура, осадки, вероятность осадков, код погоды. Бесплатно, без ключа | Готово к использованию |
-| Пары | Календарь Google (iCal) | Нужна ссылка на календарь |
-| Дедлайны | Портал вуза, Todoist, Google Tasks или HA | Выбрать источник |
-| Оценки | Портал вуза, по 10-балльной шкале | **Самая неизвестная часть:** нужен API или парсинг |
-| Новости | RSS и выжимка LLM | Выбрать ленты и модель |
-| Дом | API Home Assistant: температура и влажность (датчик Tuya), свет, принтер (Klipper) | Сущности известны |
-
----
-
-## Закупка
-
-| Что | Статус | Цена |
-|---|---|---|
-| Экран GDEY075T7 | **Купить** | Уточнить |
-| Плата ESP32-L(C02) + DESPI-C02 ([buy-lcd.com](https://buy-lcd.com/products/esp32-arduino-platform-e-paper-panel-driver-board-type-c-interface-eink-development-kit-esp32-lc02)) | **Купить** | Уточнить |
-| Kailh Choc v1 Brown, 10 шт ([AliExpress](https://aliexpress.ru/item/1005005970877769.html)) | Уточнить, заказаны ли | 582 ₽ |
-| Закладные M2.5 × 3 × 4, 20 шт | Куплены | 200 ₽ |
-| Винты M2.5 × 8 потай, 25 шт | Куплены | 135 ₽ |
-| Винты M2.5 × 6 Torx, 10 шт | Куплены | 161 ₽ |
-| Тонкий двусторонний скотч, провод МГТФ / 30 AWG, кабель USB-C с Г-образной вилкой | Купить | — |
-| Пластик для печати | Есть свой принтер | — |
-
----
-
-## Файлы проекта
-
-```
-tablo-t75/
-├── tablo-project.md              ← этот файл
-├── tablo-cad/                    модель для печати
-│   ├── tablo.scad                параметрическая модель OpenSCAD
-│   ├── README.md                 печать, измерения, сборка
-│   ├── stl/                      7 деталей для печати
-│   └── preview/                  технические превью модели
-└── tablo-presentation/           презентация и рендеры (английский)
-    ├── tablo-en.pdf              презентация, 7 страниц
-    ├── tablo-en.html             исходник презентации
-    ├── views3-en.html            исходник рендеров (размеры из модели)
-    └── r3/                       рендеры: на столе, на стене, сзади, сбоку, порты, разобранный вид
-```
-
-Пересобрать деталь:
 ```bash
-openscad --backend=manifold -o tablo-cad/stl/tablo-front.stl -D 'part="front"' tablo-cad/tablo.scad
+openscad --backend=manifold -o cad/stl/tablo-front.stl -D 'part="front"' cad/tablo.scad
 ```
 
 ---
 
-## Что дальше
+## How the software works
 
-1. **Купить** экран GDEY075T7 и плату ESP32-L с переходником, проверить, заказаны ли свитчи.
-2. **Напечатать пробник** и подогнать по нему посадку свитча и колпачка и диаметр под закладную.
-3. **Измерить плату** после выпаивания разъёмов и сверить шлейф экрана. Поправить параметры и напечатать корпус.
-4. **Написать прошивку:** вывод кадра, часы, строка статуса, кнопки.
-5. **Написать сервис:** сбор данных, вёрстка кадра, кнопки → HA, развёртывание рядом с HA.
-6. **Найти источник оценок** — API или парсинг портала вуза.
-7. **Завести в HA** скрипт «выключить весь свет».
+A smart server and a simple device. All the heavy work is done by a separate service on a home server next to Home Assistant. The device only shows the finished picture, draws the clock and the status line itself and passes on button presses.
+
+> The detailed software design (protocol, data sources, HA integration, emulator, work plan) is in [`README.md`](README.md). Where it disagrees with this section, it wins.
+
+```
+Open-Meteo ──┐
+infomaster ──┼──▶  Tablo service  ──────┬──── 800×480 frame ────▶ Tablo (ESP32-L)
+             │    (home server)         │                         · clock, status line
+             │         ▲    │           └◀─── button presses ───  · 8 buttons
+             │         │    ▼
+             └──── Home Assistant (lights, sensors)
+```
+
+- **The service** collects and caches the data on schedules (weather, deadlines, news, grades, classes) and takes the home from Home Assistant as it changes. It draws the 800×480 black-and-white frame with Pillow; the frame can be opened in a browser for debugging. It keeps the button assignments and the tile states, receives a press ("button 3, short"), runs the action in HA and sends back the updated frame.
+- **The firmware** receives the frame over the network and shows it with a partial refresh (GxEPD2, which supports the GDEY075T7). It draws the clock (time from NTP) and the status line itself once a minute, polls the buttons with debounce (short and long press), sends them to the service and redraws the tile at once. It runs constantly from USB, with no sleep.
 
 ---
 
-## История решений
+## Bill of materials
 
-| Когда | Решение | Почему |
+| What | Notes |
+|---|---|
+| Screen GDEY075T7 | Good Display |
+| Board ESP32-L(C02) + adapter DESPI-C02 | [buy-lcd.com](https://buy-lcd.com/products/esp32-arduino-platform-e-paper-panel-driver-board-type-c-interface-eink-development-kit-esp32-lc02) |
+| Kailh Choc v1 Brown, 8 (+2 spare) | |
+| M2.5 × 3 × 4 heat-set inserts, M2.5 × 8 countersunk and M2.5 × 6 Torx screws | See "Fasteners" |
+| Thin double-sided tape, 30 AWG wire, a USB-C cable with a right-angle plug | |
+| PLA or PETG filament | |
+
+---
+
+## Decision log
+
+| When | Decision | Why |
 |---|---|---|
-| 14.10 | Своя e-ink панель вместо перепрошивки найденного бейджа | У бейджа включён Secure Boot, перепрошить нельзя |
-| 14.10 | Эскиз раскладки: шапка, полоса прогноза, 2 + 3 колонки, кнопки снизу | Рисунок пользователя |
-| 14.10 | 10.3″ → 10.2″ GDEM102T91 → **7.5″ GDEY075T7 горизонтально** | Цена: 10.3″ стоит 16–19 тыс. ₽, 10.2″ около 11 тыс. ₽. Цветные панели отвергнуты — у них нет частичного обновления |
-| 14.10 | Чёрно-белый экран | Частичное обновление 0,3 с, без него кнопки откликались бы по полминуты |
-| 14.10 | **8 кнопок, на экране только значки**, залитая плашка = включено | Подписи словами на 7.5″ не помещаются |
-| 14.10 | Кнопки Choc Brown, колпачки-таблетки, метка на «всё выкл» | Низкий профиль, отклик на ощупь |
-| 14.10 | **Питание от USB**, аккумулятор отложен | Нужна была бы другая плата и режим сна; от USB работает постоянно и живо |
-| 14.10 | Часы в шапке, время крупно слева | Устройство всегда включено |
-| 14.10 | Погода: 8 часов, компактные значки, 1–3 штриха дождя | Проценты и столбики читались хуже |
-| 14.10 | Оценки по 10-балльной шкале, без рамки | Решение пользователя |
-| 14.10 | Отдельный сервис на домашнем сервере | Тяжёлые данные и вёрстка не для ESP32; раскладка меняется без перепрошивки |
-| 15.10 | Корпус-клин → **плоский корпус** | Можно повесить на стену |
-| 15.10 | Светлая подставка → **задняя ножка на отверстиях для стены** | Подставка смотрелась чужеродно, ножку спереди не видно |
-| 15.10 | Разъём **сбоку**, в саму плату | Под нижним торцом стоят свитчи, разъём снизу добавил бы толщины |
-| 15.10 | Строка статуса над прогнозом, рисует прошивка | Сервис не может сообщить о своём падении, уровень Wi-Fi знает только плата |
-| 15.10 | Крепёж на закладных M2.5 | Надёжнее саморезов в пластике |
-| 30.10 | Кнопки **вровень с корпусом**, при нажатии утапливаются; корпус 15 → 17 мм | Решение пользователя. Свитчи пришлось утопить на 2 мм, и выводам с проводами не хватало места до крышки |
+| 14.10 | A custom e-ink panel instead of reflashing an existing badge | The badge has Secure Boot enabled and cannot be reflashed |
+| 14.10 | Layout sketch: a header, a forecast strip, 2 + 3 columns, buttons at the bottom | The owner's sketch |
+| 14.10 | 10.3″ → 10.2″ GDEM102T91 → **7.5″ GDEY075T7 in landscape** | Price: a 10.3″ panel costs several times more. Colour panels were rejected — they have no partial refresh |
+| 14.10 | A black-and-white screen | Partial refresh in a fraction of a second; without it the buttons would respond in half a minute |
+| 14.10 | **8 buttons, only icons on screen**, a filled tile = on | Word labels do not fit on 7.5″ |
+| 14.10 | Choc Brown switches, pill keycaps, a mark on "all off" | Low profile, tactile feedback |
+| 14.10 | **USB power**, a battery postponed | It would need a different board and a sleep mode; on USB it runs all the time and stays responsive |
+| 14.10 | A clock in the header, the time large on the left | The device is always on |
+| 14.10 | Weather: 8 hours, compact icons, 1–3 rain strokes | Percentages and bars read worse |
+| 14.10 | Grades on a 10-point scale, without a frame | The owner's decision |
+| 14.10 | A separate service on a home server | Heavy data and layout are not for an ESP32; the layout changes without reflashing |
+| 15.10 | A wedge enclosure → **a flat enclosure** | It can hang on the wall |
+| 15.10 | A light stand → **a back leg on the wall holes** | The stand looked foreign; the leg is invisible from the front |
+| 15.10 | The connector **on the side**, into the board itself | The switches sit under the bottom end, and a connector there would add thickness |
+| 15.10 | The status line above the forecast, drawn by the firmware | The service cannot report its own failure, and only the board knows the Wi-Fi signal |
+| 15.10 | M2.5 heat-set inserts | More reliable than self-tapping screws in plastic |
+| 30.10 | Keys **flush with the enclosure**, sinking when pressed; enclosure 15 → 17 mm | The owner's decision. The switches had to go 2 mm deeper, and the pins with wires lacked room to the cover |

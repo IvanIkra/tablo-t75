@@ -1,90 +1,90 @@
-# Tablo T75 — корпус для печати и сборки
+# Tablo T75 — enclosure: printing and assembly
 
-Модель: `tablo.scad`, параметрическая, OpenSCAD 2026+. STL лежат в `stl/`, превью в `preview/`.
-Пересобрать деталь: `openscad --backend=manifold -o stl/tablo-front.stl -D 'part="front"' tablo.scad`
+The model is `tablo.scad`, parametric, OpenSCAD 2026+. The STLs are in `stl/`, the previews in `preview/`.
+To rebuild a part: `openscad --backend=manifold -o stl/tablo-front.stl -D 'part="front"' tablo.scad`
 
-Корпус 185 × 146 × 17 мм, плоский: вешается на стену на два шурупа или, без сверления, на Т-образную планку `wall_mount`, приклеенную к стене. Для стола — задняя ножка, как у фоторамки: она цепляется за те же отверстия, держит экран под 15° и спереди не видна.
-По переднему краю фаска 1,5 мм, по краю крышки 1 мм, на вырезах клавиш 0,5 мм (параметры `front_chamfer`, `back_chamfer`, `pill_chamfer`; 0 — без фаски).
+The enclosure is 185 × 146 × 17 mm and flat: it hangs on the wall on two screws or, without drilling, on the T-shaped `wall_mount` bar glued to the wall. For the desk there is a back leg like a photo frame's: it hooks into the same holes, holds the screen at 15° and is not visible from the front.
+Chamfers are 1.5 mm on the front edge, 1 mm on the cover edge and 0.5 mm on the key cut-outs (the `front_chamfer`, `back_chamfer`, `pill_chamfer` parameters; 0 means no chamfer).
 
-## Что внутри
+## What is inside
 
-| Деталь | Размер | Откуда размеры |
+| Part | Size | Where the dimensions come from |
 |---|---|---|
-| Экран Good Display GDEY075T7 | 170,2 × 111,2 × 1,25, рабочая область 163,2 × 97,92 | чертёж с good-display.com |
-| Плата ESP32-L(C02) | 70 × 54 | страница buy-lcd.com; положение Type-C и выключателя — по фото, **измерить** |
-| Переходник DESPI-C02 | 41 × 22 | там же |
-| 8 × Kailh Choc v1 Brown | плата 1,3 мм, вырез 13,8 | высоты над пластиной — оценка, **проверить на пробнике** |
+| Screen Good Display GDEY075T7 | 170.2 × 111.2 × 1.25, active area 163.2 × 97.92 | the drawing from good-display.com |
+| Board ESP32-L(C02) | 70 × 54 | the buy-lcd.com page; the Type-C and switch positions from photos, **to measure** |
+| Adapter DESPI-C02 | 41 × 22 | the same |
+| 8 × Kailh Choc v1 Brown | 1.3 mm plate, 13.8 cut-out | heights above the plate are estimates, **check on the key test** |
 
-## Что купить дополнительно
+## What else to buy
 
-| Что | Сколько | Зачем |
+| What | How many | What for |
 |---|---|---|
-| Закладная (вплавляемая) гайка M2.5×3×4 | 7 из 20 | 4 в угловые бобышки корпуса, 3 в блок под клавишами |
-| Винт M2.5×8 потай DIN 965 | 4 | задняя крышка |
-| Винт M2.5×6 цилиндрическая головка (Torx) | 3 | пластина свитчей (под головки на пластине есть площадки 1,7 мм, чтобы винт закончился ровно в гайке) |
-| Тонкий двусторонний скотч 0,5 мм | ~0,5 м | экран к рамке, переходник на площадку |
-| Провод МГТФ / 30 AWG | ~1 м | кнопки → плата, переходник → плата |
-| Тонкая резиновая полоска / 2 ножки | — | на нижний торец корпуса и стопу ножки, чтобы не скользило (по желанию) |
-| Два шурупа (Ø4, головка ≤ 8,5 мм) | 2 | для стены; в ножку вместо шурупов вклеиваются печатные грибки `peg` |
-| Суперклей или эпоксидка | капля | вклеить грибки в ножку |
-| Двусторонний вспененный скотч (3M VHB или Command) | ~0,4 м полосой 19–25 мм | планку `wall_mount` к стене |
-| USB-C кабель, лучше с Г-образной вилкой | 1 | питание, вход сбоку |
+| M2.5×3×4 heat-set insert | 7 | 4 in the enclosure's corner bosses, 3 in the block under the keys |
+| M2.5×8 countersunk screw, DIN 965 | 4 | the back cover |
+| M2.5×6 cylinder-head screw (Torx) | 3 | the switch plate (the plate has 1.7 mm pads under the heads, so the screw ends right in the insert) |
+| Thin double-sided tape, 0.5 mm | ~0.5 m | the screen to the frame, the adapter to its pad |
+| 30 AWG wire | ~1 m | buttons → board, adapter → board |
+| A thin rubber strip / 2 feet | — | on the enclosure's bottom end and the leg's foot, against slipping (optional) |
+| Two wood screws (Ø4, head ≤ 8.5 mm) | 2 | for the wall; in the leg, printed `peg` mushrooms are glued in instead of screws |
+| Superglue or epoxy | a drop | to glue the pegs into the leg |
+| Double-sided foam tape (3M VHB or Command) | ~0.4 m of a 19–25 mm strip | the `wall_mount` bar to the wall |
+| A USB-C cable, preferably with a right-angle plug | 1 | power, entering from the side |
 
-## Печать
+## Printing
 
-| Файл | Кол-во | Ориентация | Заметки |
+| File | Qty | Orientation | Notes |
 |---|---|---|---|
-| `tablo-key_test.stl` | 1 | как есть | **печатать первым**, см. ниже |
-| `tablo-front.stl` | 1 | лицом вниз | без поддержек; карманы под свитчи — короткие мосты |
-| `tablo-key_plate.stl` | 1 | плашмя | 1,3 мм, 100 % заполнение |
-| `tablo-back.stl` | 1 | наружной стороной вниз | без поддержек; каналы замочных отверстий — мост 9,5 мм |
-| `tablo-leg.stl` | 1 | планкой вниз (как экспортирован) | без поддержек, ребро печатается вертикальной стенкой |
-| `tablo-wall_mount.stl` | 1 | стороной к стене вниз (как экспортирован) | без поддержек; 124 × 120 × 5 мм, 4 периметра, грибки печатаются вместе с планкой: под шляпкой уступ 0,5 мм и конус 45° — крепление без сверления |
-| `tablo-peg.stl` | 1 (2 грибка) | шляпкой вниз (как экспортирован) | 100 % заполнение; ножка Ø2,9 вклеивается в отверстие планки Ø3,2 до упора в уступ, по ножке канавка для воздуха и лишнего клея |
-| `tablo-keycap.stl` | 7 | верхом вниз | слой 0,12, ножки тонкие |
-| `tablo-keycap_dimple.stl` | 1 | верхом вниз | кнопка «всё выкл» с ямкой |
+| `tablo-key_test.stl` | 1 | as is | **print first**, see below |
+| `tablo-front.stl` | 1 | face down | no supports; the switch pockets are short bridges |
+| `tablo-key_plate.stl` | 1 | flat | 1.3 mm, 100% infill |
+| `tablo-back.stl` | 1 | outside down | no supports; the keyhole channels are a 9.5 mm bridge |
+| `tablo-leg.stl` | 1 | bar down (as exported) | no supports, the rib prints as a vertical wall |
+| `tablo-wall_mount.stl` | 1 | wall side down (as exported) | no supports; 124 × 120 × 5 mm, 4 perimeters, the pegs print together with the bar: a 0.5 mm step and a 45° cone under the head — a mount without drilling |
+| `tablo-peg.stl` | 1 (2 pegs) | head down (as exported) | 100% infill; the Ø2.9 stem is glued into the bar's Ø3.2 hole up to the step, with a groove along the stem for air and extra glue |
+| `tablo-keycap.stl` | 7 | top down | 0.12 layers, the stems are thin |
+| `tablo-keycap_dimple.stl` | 1 | top down | the "all off" key with a dimple |
 
-PLA или PETG, слой 0,2 мм, стенки 3 периметра.
+PLA or PETG, 0.2 mm layers, 3 perimeters.
 
-## Перед печатью корпуса — измерить и подогнать
+## Before printing the enclosure — measure and fit
 
-1. **Пробник клавиш (`key_test`).** Вставь свитч в пластинку-пробник, приложи её к пробнику стенки и надень колпачок.
-   - Свитч должен защёлкнуться в пластине и не болтаться. Если болтается или не лезет — `choc_cut`.
-   - Колпачок должен стоять вровень с лицевой стороной пробника и проходить полный ход, ни за что не цепляясь. Подгоняется через `stem_top_rest` и `house_above_plate`.
-   - Колпачок должен сидеть на ножках плотно. Если нет — `stem_w` / `stem_dx`.
-2. **Плата ESP32-L** (после выпаивания разъёмов):
-   - высота самой высокой детали над платой → `comp_h`;
-   - центр Type-C от нижнего края платы → `usbc_from_bottom`;
-   - выключатель питания → `switch_from_bottom`.
-3. **Экран.** Сверь, что шлейф выходит снизу, центр в 79,9 мм от правого края, если смотреть на экран спереди → `fpc_from_right`.
+1. **The key test (`key_test`).** Put a switch into the test plate, hold it against the test wall and fit a keycap.
+   - The switch should snap into the plate without play. If it wobbles or will not go in — `choc_cut`.
+   - The keycap should sit flush with the test's front and travel the full stroke without catching. Tune with `stem_top_rest` and `house_above_plate`.
+   - The keycap should sit tight on the stems. If not — `stem_w` / `stem_dx`.
+2. **The ESP32-L board** (after desoldering the sockets):
+   - the height of the tallest component above the board → `comp_h`;
+   - the centre of the Type-C from the bottom edge of the board → `usbc_from_bottom`;
+   - the power switch → `switch_from_bottom`.
+3. **The screen.** Check that the FPC comes out at the bottom, its centre 79.9 mm from the right edge, looking at the screen from the front → `fpc_from_right`.
 
-Все эти параметры лежат в начале `tablo.scad`.
+All these parameters are at the top of `tablo.scad`.
 
-## Сборка
+## Assembly
 
-1. **Плата.** Выпаять с ESP32-L жёлтые гнёзда и чёрное 8-пиновое гнездо P5. Type-C, кнопку сброса и выключатель оставить. Выводы снизу откусить заподлицо.
-2. **Переходник.** DESPI-C02 соединить с площадками P5 восемью проводами: BUSY, RES, D/C, CS, SCK, SDI, GND, 3,3 В.
-3. **Экран.** По рамке окна изнутри передней части проклеить тонкий скотч. Уложить экран между направляющими рабочей стороной к окну, шлейфом вниз, и прижать. Шлейф загнуть назад, за экран.
-4. **Кнопки.** Вплавить паяльником (~220 °C) 3 закладные в отверстия под клавишами и 4 — в угловые бобышки. Защёлкнуть 8 свитчей в пластину (со стороны колпачков), вставить пластину изнутри в карманы и прикрутить 3 винтами M2.5×6.
-5. **Провода кнопок.** Один вывод каждого свитча — на общий GND, второй — на свой GPIO.
-6. **Крышка.** Переходник посадить на скотч на площадку крышки и вставить шлейф экрана в его разъём. Плату защёлкнуть в клипсы крышки компонентами к крышке: край с Type-C — к вырезам в боковой стенке.
-7. **Закрыть.** Закрыть крышку и закрутить 4 потайных винта M2.5×8. Надеть колпачки, «всё выкл» с ямкой — крайний левый, если смотреть спереди.
-8. **Ножка для стола.** Вклеить два грибка (`tablo-peg.stl`) в отверстия на планке ножки до упора уступом в планку — тогда шляпка встаёт ровно на 2,8 мм. Лишний клей с уступа стереть, дать схватиться. Вставить шляпки в широкую часть отверстий для стены и сдвинуть ножку вверх до щелчка в узкую часть. Корпус ставится на нижний торец и опирается на ножку; его вес сам держит грибки в замке. Для стены ножка просто снимается.
-9. **Планка для стены (без сверления).** Грибки у планки свои, напечатаны вместе с ней. Стену обезжирить спиртом, на гладкую сторону планки наклеить скотч полосами по перекладине и ножке Т. Прижать планку к стене по уровню (верхний край ровный, вырезы-метки сверху и снизу — для вертикали) и держать 30 с; вешать корпус лучше через сутки, когда скотч наберёт прочность. Корпус надеть широкими частями отверстий на грибки и опустить на 8 мм до замка. Верх планки на 2 мм ниже верха корпуса, ножка Т упирается в крышку снизу, поэтому корпус висит параллельно стене в 5 мм от неё и планку спереди не видно.
+1. **The board.** Desolder the yellow sockets and the black 8-pin P5 socket from the ESP32-L. Leave the Type-C, the reset button and the switch. Clip the pins on the back flush.
+2. **The adapter.** Connect the DESPI-C02 to the P5 pads with eight wires: BUSY, RES, D/C, CS, SCK, SDI, GND, 3.3 V.
+3. **The screen.** Run thin tape around the window frame on the inside of the front. Lay the screen between the guides, active side to the window, FPC down, and press it in. Bend the FPC back, behind the screen.
+4. **The buttons.** Melt 3 inserts into the holes under the keys and 4 into the corner bosses with a soldering iron (~220 °C). Snap 8 switches into the plate (from the keycap side), put the plate into the pockets from the inside and fasten it with 3 M2.5×6 screws.
+5. **Button wires.** One pin of each switch goes to a common GND, the other to its own GPIO.
+6. **The cover.** Stick the adapter to the cover's pad and plug the screen's FPC into its connector. Snap the board into the cover's clips, components facing the cover: the Type-C edge towards the cut-outs in the side wall.
+7. **Closing.** Close the cover and drive in 4 M2.5×8 countersunk screws. Fit the keycaps; the "all off" one with the dimple goes leftmost, seen from the front.
+8. **The desk leg.** Glue two pegs (`tablo-peg.stl`) into the holes on the leg's bar until the step meets the bar — then the head stands exactly 2.8 mm out. Wipe extra glue off the step and let it set. Put the heads into the wide part of the wall holes and slide the leg up until it clicks into the narrow part. The enclosure stands on its bottom end and leans on the leg; its own weight keeps the pegs in the lock. For the wall the leg simply comes off.
+9. **The wall bar (no drilling).** The bar has its own pegs, printed with it. Degrease the wall with alcohol and stick tape in strips along the crossbar and the leg of the T on the bar's smooth side. Press the bar to the wall level (the top edge is straight, the notch marks at the top and bottom are for vertical) and hold for 30 s; hang the enclosure preferably after a day, once the tape is at full strength. Put the enclosure on the pegs by the wide parts of its holes and lower it 8 mm into the lock. The top of the bar is 2 mm below the top of the enclosure and the leg of the T rests against the cover from below, so the enclosure hangs parallel to the wall 5 mm off it and the bar is not visible from the front.
 
-## Что пока не учтено
+## Not covered yet
 
-- Отверстия платы ESP32-L не используются: их положение неизвестно, плата держится на клипсах. Когда плата будет на руках, можно добавить стойки под винты.
-- Ход колпачков рассчитан по оценочным размерам Choc v1, поэтому сначала обязательно печатается пробник.
+- The ESP32-L board's holes are not used: their position is unknown, and the board is held by clips. With the board at hand, standoffs for screws can be added.
+- The keycap travel is calculated from estimated Choc v1 dimensions, so the key test must be printed first.
 
-## Что проверено, а что оценка
+## What is verified and what is an estimate
 
-Перенесено из заметок 14–15.10.2026. Колонка «Оценка» — проверить перед печатью корпуса.
+Carried over from the notes of 14–15.10.2026. The "Estimate" column is to be checked before printing the enclosure.
 
-| Точно (из источников) | Оценка — проверить |
+| Exact (from sources) | Estimate — to check |
 |---|---|
-| Размеры GDEY075T7 с чертежа производителя: 170,2×111,2×1,25; рабочая область 163,2×97,92; отступ сверху 3,49; шлейф снизу, центр в 79,9 мм от правого края, ширина 12,5, длина 24 | Высоты Choc v1 над пластиной (`stem_top_rest` 4,6, `house_above_plate` 1,8), ножки колпачка (1,15×3, шаг 5,7) |
-| ESP32-L 70×54, DESPI-C02 41×22, питание 5 В | Положение Type-C (32,5 мм от низа платы) и выключателя (13,8 мм) — по фото |
-| Плата: Type-C и выключатель на коротком крае | Высота деталей платы после выпайки (`comp_h` = 5) |
-| Купленный крепёж: закладные M2.5×3×4, M2.5×8 потай, M2.5×6 Torx | Диаметр под закладную 3,6 мм |
-| Все STL собираются без ошибок | Устойчивость на ножке, замок отверстий для стены (`screw_gap` 2,8) |
+| GDEY075T7 dimensions from the manufacturer's drawing: 170.2×111.2×1.25; active area 163.2×97.92; 3.49 top margin; FPC at the bottom, centre 79.9 mm from the right edge, 12.5 wide, 24 long | Choc v1 heights above the plate (`stem_top_rest` 4.6, `house_above_plate` 1.8), keycap stems (1.15×3, 5.7 pitch) |
+| ESP32-L 70×54, DESPI-C02 41×22, 5 V power | The Type-C position (32.5 mm from the bottom of the board) and the switch (13.8 mm) — from photos |
+| Board: Type-C and the switch on the short edge | Component height after desoldering (`comp_h` = 5) |
+| Fasteners: M2.5×3×4 inserts, M2.5×8 countersunk, M2.5×6 Torx | The insert hole diameter, 3.6 mm |
+| All STLs build without errors | Stability on the leg, the wall-hole lock (`screw_gap` 2.8) |

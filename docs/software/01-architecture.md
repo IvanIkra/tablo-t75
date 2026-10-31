@@ -1,54 +1,53 @@
-# Tablo — софт: состав системы и зоны экрана (§1–2)
+# Tablo — software: the system and the screen zones (§1–2)
 
-> Часть проекта софта, индекс — [`docs/README.md`](../README.md). Номера §N сквозные по всем частям.
+> Part of the software design, index in [`docs/README.md`](../README.md). Section numbers §N run through all the parts.
 
-## 1. Состав системы
+## 1. The system
 
 ```
- infomaster ───────┐  API: дедлайны, новости, оценки, статус
- (сеть infomaster) │  лента tablo.ics: пары
+ infomaster ───────┐  API: deadlines, news, grades, status
+ (infomaster net)  │  tablo.ics feed: classes
  Open-Meteo ───────┤                               WebSocket :8765
-                   └──▶  Сервис Tablo  ◀══════════════════════════▶  Плата ESP32-L
-                        (Python, Pillow,    кадры 1 бит, конфиг ▶     или эмулятор
-                         SQLite)            ◀ нажатия, статус        в браузере
+                   └──▶  Tablo service  ◀══════════════════════════▶  ESP32-L board
+                        (Python, Pillow,    1-bit frames, config ▶     or the emulator
+                         SQLite)            ◀ presses, status          in a browser
                             ▲   │
           HTTP API          │   │  HA WebSocket API
-       (конфиг, экраны)     │   ▼  (состояния, call_service, события)
-                  Home Assistant + интеграция «Tablo»
+       (config, screens)    │   ▼  (states, call_service, events)
+                  Home Assistant + the "Tablo" integration
 ```
 
-the university app, почту, чаты Telegram, РУЗ и таблицы оценок собирает отдельный сервис infomaster (свой репозиторий): он склеивает дедлайны, разбирает новости и оценки через Haiku и отдаёт готовое. Tablo только показывает.
+The university app, mail, Telegram chats, the timetable and the grade sheets are collected by a separate service, infomaster (its own repository): it merges deadlines, parses news and grades with an LLM (Claude Haiku) and serves the result. Tablo only shows it.
 
-| Часть | Что делает | Где живёт |
+| Part | What it does | Where it runs |
 |---|---|---|
-| **Сервис** | Берёт данные у infomaster и Open-Meteo, вёрстает кадр, держит соединение с платой, выполняет действия кнопок в HA | Docker на `server` |
-| **Эмулятор** | Ведёт себя в точности как плата, по тому же протоколу | Веб-страница, которую отдаёт сервис, работает в браузере на Маке |
-| **Интеграция HA** | Интерфейс настройки, триггеры кнопок для автоматизаций, действия `tablo.*` | `custom_components/tablo` в конфиге HA |
-| **Прошивка** | Выводит кадры, рисует часы, дату и строку статуса, опрашивает кнопки | ESP32-L |
+| **Service** | Takes data from infomaster and Open-Meteo, lays out the frame, keeps the link to the board, runs button actions in HA | Docker on the `server` |
+| **Emulator** | Behaves exactly like the board, over the same protocol | A web page served by the service, runs in a browser on the dev machine |
+| **HA integration** | Settings UI, button triggers for automations, `tablo.*` actions | `custom_components/tablo` in the HA config |
+| **Firmware** | Shows frames, draws the clock, date and status line, polls the buttons | ESP32-L |
 
-Главный принцип не меняется: умный сервер и простое устройство. Плата не знает, что на картинке, но умеет жить без сервиса: часы идут, строка статуса честно показывает сбой.
+The main principle stays: a smart server and a simple device. The board does not know what is in the picture, but it can live without the service: the clock keeps going and the status line honestly shows the failure.
 
 ---
 
-## 2. Кто что рисует
+## 2. Who draws what
 
-Экран 800×480, 1 бит. Координаты — `x, y, ширина, высота` в пикселях. Окончательно уточним при вёрстке; прошивка получает зоны в сообщении `config` (§3.3), поэтому их можно менять без перепрошивки.
+The screen is 800×480, 1 bit. Coordinates are `x, y, width, height` in pixels. They get final values during layout; the firmware receives the zones in the `config` message (§3.3), so they can change without reflashing.
 
-| Зона | Прямоугольник | Рисует | Содержимое |
+| Zone | Rectangle | Drawn by | Contents |
 |---|---|---|---|
-| Часы и дата | `0, 0, 184, 100` | **прошивка** | Время 64 px пиксельными цифрами одной ширины (`HH:MM` всегда 174 px), ниже «Wed, Oct 14 · wk 7» |
-| Строка статуса | `600, 0, 200, 24` | **прошивка** | Wi-Fi, облако (сервис), домик (HA); пока infomaster не отвечает (`data: false` в `health`) — слева ещё значок «база выключена» (`mdi:database-off`): блоки показывают сохранённое. Без связи с сервисом — чёрная плашка «offline since HH:MM». Время последней синхронизации — только на экране диагностики |
-| Погода сейчас | `188, 14, 142, 68` | сервис | Значок, температура, «feels» |
-| Прогноз | `340, 26, 452, 68` | сервис | 8 колонок: час, значок, температура |
-| Deadlines | `0, 100, 272, 164` | сервис | |
-| Grades | `0, 264, 272, 164` | сервис | |
-| News | `272, 100, 288, 328` | сервис | |
-| Classes | `560, 100, 240, 164` | сервис | |
-| Home | `560, 264, 240, 164` | сервис | |
-| Кнопки | `0, 428, 800, 52` | сервис, плата инвертирует | 8 плиток по 100×52 |
+| Clock and date | `0, 0, 184, 100` | **firmware** | Time in 64 px pixel digits of one width (`HH:MM` is always 174 px), below it "Wed, Oct 14 · wk 7" |
+| Status line | `600, 0, 200, 24` | **firmware** | Wi-Fi, cloud (service), house (HA); while infomaster does not answer (`data: false` in `health`) there is also a "database off" icon on the left (`mdi:database-off`): the blocks show what was saved. Without a link to the service — a black "offline since HH:MM" badge. The last sync time is only on the diagnostics screen |
+| Weather now | `188, 14, 142, 68` | service | Icon, temperature, "feels" |
+| Forecast | `340, 26, 452, 68` | service | 8 columns: hour, icon, temperature |
+| Deadlines | `0, 100, 272, 164` | service | |
+| Grades | `0, 264, 272, 164` | service | |
+| News | `272, 100, 288, 328` | service | |
+| Classes | `560, 100, 240, 164` | service | |
+| Home | `560, 264, 240, 164` | service | |
+| Buttons | `0, 428, 800, 52` | service, the board inverts | 8 tiles of 100×52 |
 
-- Сервис оставляет зоны прошивки **белыми**. Плата рисует их поверх кадра.
-- **Дата на плате:** «Wed, Oct 14» плата берёт из своих часов, номер недели «wk N» считает сама от `semester_start` из конфига. Поэтому дата сменится в полночь, даже если сервис лежит.
-- **Плитки кнопок:** залитая плитка — «включено». Значки и заливку рисует сервис. При нажатии плата **сразу** инвертирует плитку (§4.2).
-- Шрифт — Inter. Интерфейс экрана на английском.
-
+- The service leaves the firmware zones **white**. The board draws them over the frame.
+- **Date on the board:** the board takes "Wed, Oct 14" from its own clock and counts the week number "wk N" itself from `semester_start` in the config. So the date changes at midnight even if the service is down.
+- **Button tiles:** a filled tile means "on". The service draws the icons and the fill. On a press the board inverts the tile **at once** (§4.2).
+- The font is Inter. The screen interface is in English.

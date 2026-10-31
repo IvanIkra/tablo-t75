@@ -1,51 +1,52 @@
-# Tablo — софт: сбои, развёртывание, секреты (§11–13)
+# Tablo — software: failures, deployment, secrets (§11–13)
 
-> Часть проекта софта, индекс — [`docs/README.md`](../README.md). Номера §N сквозные по всем частям.
+> Part of the software design, index in [`docs/README.md`](../README.md). Section numbers §N run through all the parts.
 
-## 11. Сбои
+## 11. Failures
 
-| Что упало | Экран | Кнопки |
+| What failed | Screen | Buttons |
 |---|---|---|
-| **Wi-Fi** | Кадр остаётся, часы идут по внутренним часам; через `offline_after_s` — плашка «offline since» | Инверсия и откат через 1,5 с |
-| **Сервис** | То же, облако в статусе гаснет | То же |
-| **HA** (сервис жив) | Домик в статусе гаснет, блок Home и плитки — последние известные | `button_result ok:false`, плитка откатывается |
-| **infomaster** (не отвечает, 401, неверный ответ) | Дедлайны, новости и оценки — последние сохранённые; через 10 мин — значок `mdi:database-off` в строке статуса (`health.data: false`) | — |
-| **Источник внутри infomaster** | Надпись в своём блоке по `/api/status` (§7.1–7.5): *HSE login needed*, *the university app unavailable* (3 ч), *N sheet(s) failing* / *sheets unavailable*, *news unavailable* (3 ч). Ошибки РУЗ, почты и Telegram — в теме «Система» infomaster | — |
-| **Лента пар** | Сохранённая; через 12 ч — *timetable unavailable* | — |
-| **Погода** | Прогноз сдвигается по часам; через 3 ч — *no weather* | — |
-| **Перезапуск сервиса** | Плата переподключается, получает конфиг и кадр | — |
+| **Wi-Fi** | The frame stays, the clock runs on the internal clock; after `offline_after_s` — an "offline since" badge | Inversion, rolled back after 1.5 s |
+| **Service** | The same, the cloud in the status line goes out | The same |
+| **HA** (the service is alive) | The house in the status line goes out, the Home block and the tiles show the last known state | `button_result ok:false`, the tile rolls back |
+| **infomaster** (no answer, 401, a bad answer) | Deadlines, news and grades show the last saved data; after 10 min — the `mdi:database-off` icon in the status line (`health.data: false`) | — |
+| **A source inside infomaster** | A note in its own block, from `/api/status` (§7.1–7.5): *HSE login needed*, *the university app unavailable* (3 h), *N sheet(s) failing* / *sheets unavailable*, *news unavailable* (3 h). Timetable, mail and Telegram errors are in infomaster's "System" topic | — |
+| **Class feed** | The saved one; after 12 h — *timetable unavailable* | — |
+| **Weather** | The forecast shifts with the hours; after 3 h — *no weather* | — |
+| **Service restart** | The board reconnects and gets the config and the frame | — |
 
 ---
 
-## 12. Развёртывание и ресурсы
+## 12. Deployment and resources
 
-**Разработка** — на Маке, сервис ходит в настоящий HA на `192.168.1.50:8123`.
+**Development** — on the dev machine; the service can talk to the real HA (`TABLO_HA_URL`) or run with the built-in fake one.
 
-**Боевой запуск** — Docker Compose на `server` ([`service/compose.yaml`](../../service/compose.yaml)), развёрнут 18.10:
-- Каталог `~/tablo` на хосте: код из `service/`, `.env` и `data/` (SQLite с последними ответами infomaster и конфиг от HA). Обновить код — rsync `service/` и `docker compose up -d --build`. Если хост не достаёт до Docker Hub или PyPI, образ собирается на Маке (`docker buildx build --platform linux/amd64 -t tablo:latest --load .`) и переносится через `docker save | ssh server docker load`.
-- Сеть bridge, порт открыт только на LAN-адресе хоста, DNS задан явно (`dns:`). Не `network_mode: host`: при нём контейнер берёт DNS хоста, а HA однажды уже ломался из-за этого.
-- HA доступен по `192.168.1.50:8123` (`TABLO_HA_URL` в compose).
-- **infomaster:** Tablo подключён к его docker-сети `infomaster` как к внешней (`networks: [default, infomaster]`) и ходит на `http://infomaster:8081` по имени сервиса. Сеть создаёт compose infomaster, поэтому он запускается раньше Tablo. Порт infomaster на хост не публикуется.
-- Том `./data` для SQLite и сохранённого конфига. `mem_limit: 256m`, `TZ=Europe/Moscow`.
+**Production** — Docker Compose on the `server` ([`service/compose.yaml`](../../service/compose.yaml)), running since 18.10:
+- A `~/tablo` directory on the server: the code from `service/`, `.env` and `data/` (SQLite with infomaster's last answers and the config from HA). To update the code, rsync `service/` and run `docker compose up -d --build`. If the server cannot reach Docker Hub or PyPI, build the image on the dev machine (`docker buildx build --platform linux/amd64 -t tablo:latest --load .`) and move it with `docker save | ssh server docker load`.
+- A bridge network, with the port published on one LAN address only (`TABLO_BIND_IP` in `.env`): another service on the host may already hold `127.0.0.1:8765`. DNS for the container is set explicitly (`TABLO_DNS`, `TABLO_DNS_FALLBACK`). Not `network_mode: host`: with it the container takes the host's DNS, which broke HA once already.
+- HA is reached at `TABLO_HA_URL` from `.env`.
+- **infomaster:** Tablo joins its `infomaster` docker network as an external one (`networks: [default, infomaster]`) and reaches `http://infomaster:8081` by service name. infomaster's compose creates the network, so infomaster starts before Tablo. infomaster's port is not published on the host.
+- A `./data` volume for SQLite and the saved config. `mem_limit: 256m`, `TZ=Europe/Moscow`.
+- **Internet access** (the service only needs Open-Meteo): no proxy of its own is needed.
 
-**Память** (замер 18.10 в контейнере):
+**Memory** (measured on 18.10 in the container):
 
-| Состояние | RSS |
+| State | RSS |
 |---|---|
-| После старта, все источники и разбор таблиц | 124 МБ, пик 126 МБ |
-| `docker stats` | 95 МБ из 256 МБ |
+| After startup, all sources and sheet parsing | 124 MB, peak 126 MB |
+| `docker stats` | 95 MB of 256 MB |
 
-Замер до перехода на infomaster; без Haiku, таблиц, почты и Telegram память меньше — перемерить после деплоя. CPU в ожидании около нуля.
+Measured before the move to infomaster; without Haiku, sheets, mail and Telegram it uses less — to be measured again after a deploy. CPU at idle is near zero.
 
 ---
 
-## 13. Секреты и приватность
+## 13. Secrets and privacy
 
-| Секрет | Где хранится |
+| Secret | Where it is kept |
 |---|---|
-| Токен HA, токен infomaster (`TABLO_INFOMASTER_TOKEN` = `API_TOKEN` infomaster), токены платы и API | `.env` сервиса |
-| Ссылка на ленту пар (с `CALENDAR_SECRET` infomaster), пароли Wi-Fi для QR | Настройки интеграции в HA (`.storage`) |
+| The HA token, the infomaster token (`TABLO_INFOMASTER_TOKEN` = infomaster's `API_TOKEN`), the board and API tokens | The service's `.env` |
+| The class feed link (with infomaster's `CALENDAR_SECRET`), Wi-Fi passwords for the QR | The integration's settings in HA (`.storage`) |
 
-- Каждый секрет — в одном месте. Дедлайны, новости и оценки собирает infomaster, у него же их доступы; Tablo хранит только токены HA, infomaster, платы и API.
-- В репозиторий секреты не попадают: в нём только `.env.example`.
-- Сервис слушает только локальную сеть, наружу не публикуется.
+- Each secret lives in one place. infomaster collects deadlines, news and grades and holds the credentials for them; Tablo keeps only the HA, infomaster, board and API tokens.
+- Secrets never go into the repository: it only has `.env.example`.
+- The service listens on the local network only and is not exposed to the internet.
