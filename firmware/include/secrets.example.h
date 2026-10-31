@@ -4,7 +4,7 @@
 #define WIFI_SSID "your-ssid"
 #define WIFI_PASSWORD "your-password"
 
-#define SERVICE_HOST "192.168.1.50"
+#define SERVICE_HOST "<host-ip>"
 #define SERVICE_PORT 8765
 
 #define DEVICE_ID "tablo"

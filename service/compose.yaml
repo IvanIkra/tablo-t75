@@ -1,4 +1,5 @@
-# Production run on server (§12): cd ~/tablo && docker compose up -d --build
+# Production run on the server (§12): cd ~/tablo && docker compose up -d --build
+# Deployment values (bind address, DNS, HA URL) come from .env, see .env.example.
 # infomaster must be up first: its compose creates the "infomaster" network Tablo joins to reach
 # http://infomaster:8081 (deadlines, news, grades, tablo.ics) by service name.
 # Bridge network, not host: with network_mode: host the container would take the host's DNS,
@@ -12,13 +13,12 @@ services:
     networks: [default, infomaster]
     ports:
       # One LAN address only: another service on the host may already hold 127.0.0.1:8765.
-      - "192.168.1.50:8765:8765"
+      - "${TABLO_BIND_IP:?set TABLO_BIND_IP in .env}:8765:8765"
     dns:
-      - 192.168.1.50
-      - 192.168.1.1
+      - ${TABLO_DNS:?set TABLO_DNS in .env}
+      - ${TABLO_DNS_FALLBACK:?set TABLO_DNS_FALLBACK in .env}
     env_file: .env
     environment:
-      TABLO_HA_URL: http://192.168.1.50:8123
       TZ: Europe/Moscow
     volumes:
       - ./data:/app/data

@@ -7,7 +7,7 @@ CONF_API_TOKEN = "api_token"
 OPT_CONFIG = "config"  # the service config, same shape as service/config.yaml (§6.5)
 OPT_BOT = "bot"  # username of the infomaster bot, for the HSE login link; never sent to the service
 
-DEFAULT_URL = "http://192.168.1.50:8765"
+DEFAULT_URL = "http://<host-ip>:8765"
 
 BUTTON_EVENT = "tablo_button"  # fired by the service: {button, press}
 CHANGED_EVENT = "tablo_changed"  # fired by the service: {kind: "status" / "messages"}

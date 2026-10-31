@@ -2,8 +2,8 @@
 
 The image goes to PUT /api/firmware, the service offers it to the panel, and the panel
 downloads it from /firmware.bin itself. Then this waits for the panel to come back with
-the version built into the image. TABLO_API_TOKEN comes from the shell or service/.env,
-TABLO_SERVICE (default http://192.168.1.50:8765) says where the service is.
+the version built into the image. TABLO_API_TOKEN and TABLO_SERVICE (where the service is,
+e.g. http://<host-ip>:8765) come from the shell or service/.env.
 """
 
 import json
@@ -19,14 +19,18 @@ ENV_FILE = Path(__file__).resolve().parents[2] / "service" / ".env"
 WAIT_S = 240
 
 
+def setting(name: str) -> str:
+    value = os.environ.get(name, "")
+    if not value and ENV_FILE.exists():
+        m = re.search(rf"^{name}=(.*)$", ENV_FILE.read_text(), re.M)
+        value = m.group(1).strip().strip("\"'") if m else ""
+    if not value:
+        sys.exit(f"{name} is not set (shell or service/.env)")
+    return value
+
+
 def api_token() -> str:
-    token = os.environ.get("TABLO_API_TOKEN", "")
-    if not token and ENV_FILE.exists():
-        m = re.search(r"^TABLO_API_TOKEN=(.*)$", ENV_FILE.read_text(), re.M)
-        token = m.group(1).strip().strip("\"'") if m else ""
-    if not token:
-        sys.exit("TABLO_API_TOKEN is not set (shell or service/.env)")
-    return token
+    return setting("TABLO_API_TOKEN")
 
 
 def panel(base: str) -> dict | None:
@@ -39,7 +43,7 @@ def panel(base: str) -> dict | None:
 
 def main() -> None:
     image = Path(sys.argv[1]).read_bytes()
-    base = os.environ.get("TABLO_SERVICE", "http://192.168.1.50:8765").rstrip("/")
+    base = setting("TABLO_SERVICE").rstrip("/")
     m = re.search(rb"fw-\d+\.\d+\+(?:[0-9a-f]{7}(?:-dirty)?|nogit)", image)
     want = m.group().decode() if m else None
     before = panel(base)

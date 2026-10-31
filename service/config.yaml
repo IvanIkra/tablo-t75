@@ -14,7 +14,7 @@ api:
 # The service's own link to HA (§8.1); the long-lived token goes in .env as TABLO_HA_TOKEN.
 # Without a token only the fake HA (the "fake HA" demo switch) is there.
 ha:
-  url: http://192.168.1.50:8123
+  url: http://homeassistant.local:8123
 
 # Deadlines, news and grades (§7.2): infomaster's internal API, reached in its docker network.
 # Its token (API_TOKEN of infomaster) goes in .env as TABLO_INFOMASTER_TOKEN.

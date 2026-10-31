@@ -164,7 +164,7 @@ def legacy_home_rows(home: dict) -> list[HomeRow]:
 class HA:
     """§8.1: the service's own connection to HA. The token comes from TABLO_HA_TOKEN."""
 
-    url: str = "http://192.168.1.50:8123"
+    url: str = "http://homeassistant.local:8123"
     token: str = ""
 
 
@@ -289,12 +289,16 @@ def parse_demo(data: dict) -> dict[str, bool]:
 
 
 def _apply_env(cfg: Config) -> None:
-    cfg.device_token = os.environ.get("TABLO_DEVICE_TOKEN", cfg.device_token)
-    cfg.api_token = os.environ.get("TABLO_API_TOKEN", cfg.api_token)
-    cfg.infomaster_token = os.environ.get("TABLO_INFOMASTER_TOKEN", cfg.infomaster_token)
-    cfg.ha.url = os.environ.get("TABLO_HA_URL", cfg.ha.url)
-    cfg.ha.token = os.environ.get("TABLO_HA_TOKEN", cfg.ha.token)
-    if "TABLO_PORT" in os.environ:
+    # An empty value (a line copied from .env.example and left blank) counts as unset.
+    def env(name: str, default: str) -> str:
+        return os.environ.get(name) or default
+
+    cfg.device_token = env("TABLO_DEVICE_TOKEN", cfg.device_token)
+    cfg.api_token = env("TABLO_API_TOKEN", cfg.api_token)
+    cfg.infomaster_token = env("TABLO_INFOMASTER_TOKEN", cfg.infomaster_token)
+    cfg.ha.url = env("TABLO_HA_URL", cfg.ha.url)
+    cfg.ha.token = env("TABLO_HA_TOKEN", cfg.ha.token)
+    if os.environ.get("TABLO_PORT"):
         cfg.port = int(os.environ["TABLO_PORT"])
 
 
