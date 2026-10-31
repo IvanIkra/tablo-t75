@@ -11,7 +11,7 @@ create table if not exists kv (
 );
 """
 
-# Left by the sources that moved to infomaster (§6.1): the the university app login is a secret, the rest are caches.
+# Left by the sources that moved to infomaster (§6.1): the university app login is a secret, the rest are caches.
 # Their old tables stay in an existing tablo.db until it is started afresh, so a rollback still finds them.
 OLD_KEYS = ("hseapp.auth", "hseapp.deadlines", "telegram.last", "mail.state")
 OLD_PREFIXES = ("hseapp.label:", "grades.layout:")

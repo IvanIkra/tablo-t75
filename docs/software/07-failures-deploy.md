@@ -26,7 +26,6 @@
 - Сеть bridge, порт открыт только на LAN-адресе хоста, DNS задан явно (`dns:`). Не `network_mode: host`: при нём контейнер берёт DNS хоста, а HA однажды уже ломался из-за этого.
 - HA доступен по `192.168.1.50:8123` (`TABLO_HA_URL` в compose).
 - **infomaster:** Tablo подключён к его docker-сети `infomaster` как к внешней (`networks: [default, infomaster]`) и ходит на `http://infomaster:8081` по имени сервиса. Сеть создаёт compose infomaster, поэтому он запускается раньше Tablo. Порт infomaster на хост не публикуется.
-- **Переход на infomaster** (21.10, тогда ещё infomaster; одним шагом, порядок — в `tablo-migration.md` infomaster, раздел 2): `docker compose down` Tablo → `import-tablo` в infomaster из копии `tablo.db` → infomaster со всеми источниками → `.env` и конфиг Tablo по §13 и §6.5, `docker compose up -d --build` → обновить и перезагрузить интеграцию HA, удалить осиротевшие сущности (списки дел, датчики LLM). В `data/config.yaml` на хосте не должно остаться секций `grades`, `hseapp`, `news`, `mail`, `subjects`: сервис их не принимает (HA при следующей отправке пришлёт уже чистый конфиг).
 - Том `./data` для SQLite и сохранённого конфига. `mem_limit: 256m`, `TZ=Europe/Moscow`.
 
 **Память** (замер 18.10 в контейнере):
@@ -47,7 +46,6 @@
 | Токен HA, токен infomaster (`TABLO_INFOMASTER_TOKEN` = `API_TOKEN` infomaster), токены платы и API | `.env` сервиса |
 | Ссылка на ленту пар (с `CALENDAR_SECRET` infomaster), пароли Wi-Fi для QR | Настройки интеграции в HA (`.storage`) |
 
-- Каждый секрет — в одном месте. Ключ Anthropic, почта (`TABLO_MAIL_USER`, `TABLO_MAIL_PASSWORD`), ссылка РУЗ (`TABLO_ICAL_URL`) и токен the university app теперь только у infomaster; из `.env` Tablo их убрать. Ключ `hseapp.auth` из `tablo.db` сервис удаляет сам при старте.
+- Каждый секрет — в одном месте. Дедлайны, новости и оценки собирает infomaster, у него же их доступы; Tablo хранит только токены HA, infomaster, платы и API.
 - В репозиторий секреты не попадают: в нём только `.env.example`.
 - Сервис слушает только локальную сеть, наружу не публикуется.
-- Таблицы оценок, письма и чаты Tablo больше не читает: правила приватности для них — у infomaster.

@@ -61,7 +61,7 @@ class Hub:
                                              on_change=lambda: self.schedule_render(0.5), now=self.now)
         self.devices: dict[str, Device] = {}
         self.sticky: list[dict] = self.store.get_json(STICKY_KEY) or []  # oldest first, the panel shows [0]
-        self._login_needed: bool | None = None  # what HA last heard of the the university app login (§8.4)
+        self._login_needed: bool | None = None  # what HA last heard of the university app login (§8.4)
         self._data_ok: bool | None = None  # what the panels last heard of infomaster in `health` (§3.3)
         self.last_seen: float | None = None  # last message from any panel; kept after it goes offline
         self.last_rssi: int | None = None

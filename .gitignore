@@ -6,8 +6,5 @@ __pycache__/
 .pytest_cache/
 .env
 
-# Personal data and tokens from the the university app research
-research/hseapp/captures/
-
 # Service runtime state
 service/data/

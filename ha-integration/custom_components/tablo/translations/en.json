@@ -112,7 +112,7 @@
         },
         "data_description": {
           "ical_url": "http://infomaster:8081/calendar/<CALENDAR_SECRET>/tablo.ics",
-          "bot": "Its username, for the link in the the university app login notification."
+          "bot": "Its username, for the link in the university app login notification."
         },
         "description": "Deadlines, news and grades come from infomaster and are set up in its Mini App."
       },
