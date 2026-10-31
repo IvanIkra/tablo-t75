@@ -112,6 +112,10 @@ void drawDiagLine(Canvas &c, int i) {
       k = "Wi-Fi";
       if (st.wifiUp) snprintf(v, sizeof v, "%d dBm", WiFi.RSSI());
       else snprintf(v, sizeof v, "down");
+      if (st.wifiDrops) {
+        size_t n = strlen(v);
+        snprintf(v + n, sizeof v - n, " \xC2\xB7 %u drops", st.wifiDrops);
+      }
       break;
     case 3:
       k = "Uptime";

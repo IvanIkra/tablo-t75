@@ -6,10 +6,10 @@
 
 // Raise FW_NUMBER for each change worth naming; the commit is added at build time
 // (tools/fw_version.py), so two builds of one number still differ.
-#define FW_NUMBER "0.7"
+#define FW_NUMBER "0.8"
 // What FW_NUMBER changed, a line or two in English: the service shows it on the panel
 // after an update (§5). Write it together with a new FW_NUMBER.
-#define FW_NOTES "Updates download from the service: a Wi-Fi stall no longer breaks them."
+#define FW_NOTES "Wi-Fi comes back by itself on a weak signal; diagnostics count the drops."
 #ifndef FW_COMMIT
 #define FW_COMMIT "nogit"
 #endif
@@ -59,6 +59,7 @@ struct Health {
 
 struct State {
   bool wifiUp = false;
+  uint16_t wifiDrops = 0;  // since the start, for the diagnostics
   bool connected = false;
   uint32_t offlineSinceMs = 0;
   bool haveBase = false;

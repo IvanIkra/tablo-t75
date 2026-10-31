@@ -18,6 +18,9 @@ static bool otaRunning = false;
 static uint32_t restartAtMs = 0;
 // A download from the service gives up after this long without a byte.
 static const uint32_t OTA_STALL_MS = 30000;
+static const uint32_t WIFI_RETRY_MS = 30000;
+static uint32_t wifiTryMs = 0;  // when Wi-Fi went down or was last started over
+static uint8_t wifiTries = 0;
 
 static const char *otaError(ota_error_t e) {
   switch (e) {
@@ -129,6 +132,35 @@ static void updateFromService() {
   otaFailed(err);
 }
 
+static void wifiStart() {
+  WiFi.mode(WIFI_STA);
+  WiFi.setHostname("tablo");
+  WiFi.setSleep(false);  // USB power; a sleeping radio adds latency to every press
+  // With a repeater or mesh under one name: join the loudest, not the first found.
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
+}
+
+// The core's own reconnect stalled now and then at -79 dBm and the panel stayed offline
+// until a restart. Start over every 30 s, and every 5th time with the radio off and on.
+// No restart: it would clear the shown frame while the router is simply off.
+static void keepWifi() {
+  if (millis() - wifiTryMs < WIFI_RETRY_MS) return;
+  wifiTryMs = millis();
+  wifiTries++;
+  Serial.printf("wifi: still down, try %u\n", wifiTries);
+  if (wifiTries % 5 == 0) {
+    WiFi.mode(WIFI_OFF);
+    delay(100);
+    wifiStart();
+  } else {
+    WiFi.disconnect();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  }
+}
+
 // Once a second: the clock minute, the offline bar, overlay ttl, the nightly full refresh.
 static void tick() {
   static int lastMinute = -2;
@@ -174,10 +206,8 @@ void setup() {
   screen::present(true);
   buttons::begin();
 
-  WiFi.mode(WIFI_STA);
-  WiFi.setHostname("tablo");
-  WiFi.setSleep(false);  // USB power; a sleeping radio adds latency to every press
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  wifiStart();
+  wifiTryMs = millis();
   configTzTime(cfg.tz, cfg.ntp);
   svc::begin();
   Serial.printf("heap after start: %lu, largest block %lu\n", (unsigned long)heapFree(),
@@ -191,6 +221,11 @@ void loop() {
   bool wifi = WiFi.status() == WL_CONNECTED;
   if (wifi != st.wifiUp) {
     st.wifiUp = wifi;
+    if (!wifi) {
+      st.wifiDrops++;
+      wifiTryMs = millis();
+      wifiTries = 0;
+    }
     Serial.printf("wifi: %s %s\n", wifi ? "up" : "down", wifi ? WiFi.localIP().toString().c_str() : "");
     if (wifi && !otaStarted) {
       startOta();
@@ -198,6 +233,7 @@ void loop() {
     }
     screen::present();
   }
+  if (!wifi) keepWifi();
   if (otaStarted) ArduinoOTA.handle();
   if (st.otaSize && !otaRunning) updateFromService();
   if (restartAtMs && (int32_t)(millis() - restartAtMs) >= 0) ESP.restart();
