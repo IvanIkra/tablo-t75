@@ -3,7 +3,13 @@
 #include <stdint.h>
 #include <time.h>
 
-#define FW_VERSION "fw-0.1"
+// Raise FW_NUMBER for each change worth naming; the commit is added at build time
+// (tools/fw_version.py), so two builds of one number still differ.
+#define FW_NUMBER "0.2"
+#ifndef FW_COMMIT
+#define FW_COMMIT "nogit"
+#endif
+#define FW_VERSION "fw-" FW_NUMBER "+" FW_COMMIT
 
 constexpr int W = 800, H = 480, ROW = W / 8;
 constexpr int PAYLOAD = ROW * H;  // 48 000

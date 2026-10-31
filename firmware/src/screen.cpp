@@ -64,14 +64,17 @@ void zonesChanged() {
 }
 
 // The driver takes 1 = white; frames are 1 = black, hence invert = true.
-// The whole screen goes black, then white, then the image: the driver's fast full
-// update alone leaves traces of the old image on black areas.
-static void refreshFull() {
+// clean: the whole screen goes black, then white, then the image. The driver's fast
+// full update alone leaves traces on black areas, but the cycle takes 5 s instead of 2:
+// only for a full refresh asked for (button 8, night, HA, start) and after maxPartials.
+static void refreshFull(bool clean) {
   uint32_t t = millis();
-  epd.writeScreenBuffer(0x00);
-  epd.refresh(false);
-  epd.writeScreenBuffer(0xFF);
-  epd.refresh(false);
+  if (clean) {
+    epd.writeScreenBuffer(0x00);
+    epd.refresh(false);
+    epd.writeScreenBuffer(0xFF);
+    epd.refresh(false);
+  }
   epd.writeImageForFullRefresh(shown, 0, 0, W, H, true);
   epd.refresh(false);
   epd.writeImageAgain(shown, 0, 0, W, H, true);
@@ -79,7 +82,7 @@ static void refreshFull() {
   powered = false;
   partials = 0;
   lastRefreshMs = millis();
-  Serial.printf("screen: full refresh %lu ms\n", lastRefreshMs - t);
+  Serial.printf("screen: full refresh%s %lu ms\n", clean ? ", clean" : "", lastRefreshMs - t);
 }
 
 static void refreshPart(int x, int y, int w, int h) {
@@ -114,13 +117,15 @@ struct Diff {
 
   void commit(bool full) {
     if (!full && b1 < 0) return;
-    if (!full && cells > cfg.bigChange * PAYLOAD) {
-      Serial.printf("screen: big change, %lu of %d cells\n", (unsigned long)cells, PAYLOAD);
-      full = true;
-    }
     if (!full && partials >= cfg.maxPartials) full = true;
-    if (full) refreshFull();
-    else refreshPart(b0 * 8, y0, (b1 - b0 + 1) * 8, y1 - y0 + 1);
+    if (full) {
+      refreshFull(true);
+    } else if (cells > cfg.bigChange * PAYLOAD) {
+      Serial.printf("screen: big change, %lu of %d cells\n", (unsigned long)cells, PAYLOAD);
+      refreshFull(false);
+    } else {
+      refreshPart(b0 * 8, y0, (b1 - b0 + 1) * 8, y1 - y0 + 1);
+    }
   }
 };
 
@@ -192,7 +197,7 @@ static void presentDiag(bool full) {
 void present(bool full) {
   if (overlay) {
     // Nothing is drawn over a full-screen frame; a full refresh just cleans it.
-    if (full) refreshFull();
+    if (full) refreshFull(true);
     return;
   }
   if (diag) {
