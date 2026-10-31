@@ -4,6 +4,7 @@
 //   front         front shell: bezel, screen window, key plate, side ports   (print face down)
 //   back          back cover: wall keyholes, board clips, adapter pad        (print outer face down)
 //   leg           rear desk leg, hooks into the wall keyholes, 15°            (print bar face down)
+//   peg           mushroom peg ×2, glued into the leg bar instead of screws  (print cap down)
 //   keycap        pill keycap ×7, keycap_dimple ×1 ("all off")               (print top face down)
 //   key_plate     separate 1.3 mm switch plate: clip the switches in, then screw it in from the back
 //   key_test      2-key coupons of the front wall and the plate — PRINT THESE FIRST to tune the Choc fit
@@ -16,7 +17,7 @@
 // ESP32-L(C02) 70×54 mm, DESPI-C02 41×22 mm (buy-lcd.com product page).
 // Values marked MEASURE are estimates — check them with calipers before printing.
 
-part = "assembly_desk"; // [assembly_desk, assembly_side, assembly_wall, assembly_back, assembly_open, exploded, front, back, leg, key_plate, keycap, keycap_dimple, key_test]
+part = "assembly_desk"; // [assembly_desk, assembly_side, assembly_wall, assembly_back, assembly_open, exploded, front, back, leg, peg, key_plate, keycap, keycap_dimple, key_test]
 
 /* [Body] */
 W = 185;  H = 146;  T = 17;  R = 6;
@@ -84,6 +85,11 @@ leg_contact = [40, 138];// fin touches the back from this height to this height
 leg_foot = [62, 86];    // fin foot, measured out from the back face (it lands on the desk line)
 screw_pilot = 3.2;      // for the same M4 / Ø4 screws used on the wall
 screw_gap = 2.8;        // leave the screw head this far from the bar (cover thickness + play)
+// printed mushroom pegs instead of the screws: the stem is glued into the pilot hole,
+// the neck rides in the 4.5 mm slot, the cap goes in through the 9 mm hole and sits in the 3 mm channel
+peg_cap = [8, 2];       // cap diameter, thickness (like the screw head)
+peg_neck = 4;           // neck diameter, its length is screw_gap: the shoulder stops on the bar
+peg_stem = [2.9, 3.6];  // stem diameter (pilot hole 3.2 leaves room for glue), length (hole is 4 deep)
 
 $fn = 48;
 eps = 0.01;
@@ -254,11 +260,19 @@ module leg() {
     rotate([-tilt, 0, 0]) translate([-1, -200, -50]) cube([W + 2, 200, 250]);
   }
 }
-module leg_screws() {
-  for (sx = [-1, 1]) color("#b0b0b0") translate([W / 2 + sx * kh_dx, lock_y, T]) {
-    translate([0, 0, -screw_gap]) cylinder(d = 4, h = screw_gap + 5);
-    translate([0, 0, -screw_gap - 2]) cylinder(d = 8, h = 2);
+// print orientation: cap on the bed, stem up
+module peg() {
+  difference() {
+    union() {
+      hull() { cylinder(d = peg_cap[0] - 1, h = eps); translate([0, 0, 0.5]) cylinder(d = peg_cap[0], h = peg_cap[1] - 0.5); }   // chamfer leads it into the hole
+      cylinder(d = peg_neck, h = peg_cap[1] + screw_gap);
+      translate([0, 0, peg_cap[1] + screw_gap - eps]) cylinder(d1 = peg_stem[0], d2 = peg_stem[0] - 0.3, h = peg_stem[1]);   // slight taper starts it in the hole
+    }
+    translate([peg_stem[0] / 2 - 0.4, -0.3, peg_cap[1] + screw_gap]) cube([1, 0.6, peg_stem[1] + 1]);   // vent: lets air and extra glue out
   }
+}
+module leg_pegs() {
+  for (sx = [-1, 1]) color("#b0b0b0") translate([W / 2 + sx * kh_dx, lock_y, T - screw_gap - peg_cap[1]]) peg();
 }
 
 // ---------- switch plate (print flat) ----------
@@ -319,6 +333,7 @@ module to_world() { translate([W, 0, 0]) rotate([0, 0, 180]) rotate([90, 0, 0]) 
 if (part == "front") front_shell();
 else if (part == "back") translate([0, H, T]) rotate([180, 0, 0]) back_cover();
 else if (part == "leg") translate([0, 0, -T]) leg();
+else if (part == "peg") for (i = [0, 1]) translate([i * (peg_cap[0] + 4), 0, 0]) peg();
 else if (part == "key_plate") translate([0, 0, -plate_z0]) key_plate();
 else if (part == "keycap") keycap(false);
 else if (part == "keycap_dimple") keycap(true);
@@ -335,7 +350,7 @@ else if (part == "exploded") to_world() {
 }
 else {   // on the desk: leaning back on the leg, pivoting on the back-bottom edge
   to_world() translate([0, 0, T]) rotate([tilt, 0, 0]) translate([0, 0, -T]) {
-    device(); color("#3a3a38") leg(); leg_screws();
+    device(); color("#3a3a38") leg(); leg_pegs();
   }
   if (part == "assembly_side") color("#cfcbbf") translate([-40, -60, -1]) cube([W + 80, 200, 1]);
 }
