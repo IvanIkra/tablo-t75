@@ -5,6 +5,7 @@
 //   back          back cover: wall keyholes, board clips, adapter pad        (print outer face down)
 //   leg           rear desk leg, hooks into the wall keyholes, 15°            (print bar face down)
 //   peg           mushroom peg ×2, glued into the leg bar instead of screws  (print cap down)
+//   wall_mount    T plate taped to the wall, 2 glued pegs hold the body     (print wall face down)
 //   keycap        pill keycap ×7, keycap_dimple ×1 ("all off")               (print top face down)
 //   key_plate     separate 1.3 mm switch plate: clip the switches in, then screw it in from the back
 //   key_test      2-key coupons of the front wall and the plate — PRINT THESE FIRST to tune the Choc fit
@@ -17,7 +18,7 @@
 // ESP32-L(C02) 70×54 mm, DESPI-C02 41×22 mm (buy-lcd.com product page).
 // Values marked MEASURE are estimates — check them with calipers before printing.
 
-part = "assembly_desk"; // [assembly_desk, assembly_side, assembly_wall, assembly_back, assembly_open, exploded, front, back, leg, peg, key_plate, keycap, keycap_dimple, key_test]
+part = "assembly_desk"; // [assembly_desk, assembly_side, assembly_wall, assembly_back, assembly_open, exploded, front, back, leg, peg, wall_mount, key_plate, keycap, keycap_dimple, key_test]
 
 /* [Body] */
 W = 185;  H = 146;  T = 17;  R = 6;
@@ -90,6 +91,12 @@ screw_gap = 2.8;        // leave the screw head this far from the bar (cover thi
 peg_cap = [8, 2];       // cap diameter, thickness (like the screw head)
 peg_neck = 4;           // neck diameter, its length is screw_gap: the shoulder stops on the bar
 peg_stem = [2.9, 3.6];  // stem diameter (pilot hole 3.2 leaves room for glue), length (hole is 4 deep)
+
+/* [Wall mount: T plate on double-sided tape with two pegs printed in one piece, hidden behind the body] */
+mount_t = 5;            // plate thickness = gap between the back and the wall
+mount_bar = [124, 20];  // cross bar through the two pegs: width, height
+mount_stem = [32, 24];  // stem width, its bottom edge above the body's bottom; the back rests on it, so the body hangs parallel to the wall
+mount_chamfer = 0.8;    // 45° on both faces (the bed side also hides elephant foot)
 
 $fn = 48;
 eps = 0.01;
@@ -275,6 +282,37 @@ module leg_pegs() {
   for (sx = [-1, 1]) color("#b0b0b0") translate([W / 2 + sx * kh_dx, lock_y, T - screw_gap - peg_cap[1]]) peg();
 }
 
+// ---------- wall mount (device coordinates, sits on the back face z = T, wall at z = T + mount_t) ----------
+// Taped to the wall; the body's keyholes drop over its pegs and slide down to lock, like on the leg.
+// The bar top stays 2 mm under the body's top edge, so nothing shows from the front.
+module mount_outline() {
+  offset(r = 4) offset(delta = -4) offset(r = -8) offset(delta = 8) union() {
+    translate([W / 2, lock_y]) square(mount_bar, center = true);
+    translate([W / 2 - mount_stem[0] / 2, mount_stem[1]]) square([mount_stem[0], lock_y - mount_stem[1]]);
+  }
+}
+// Peg grown out of the plate (plate face at z = 0, pointing +z, as it prints): same neck and cap as `peg`,
+// but under the cap a 0.5 mm ledge takes the slot edge and a 45° cone carries the rest, so it prints without supports.
+module mount_peg() {
+  g = screw_gap;  h = g + peg_cap[1];  rn = peg_neck / 2;  rc = peg_cap[0] / 2;
+  rotate_extrude() polygon([[0, 0], [rn + 0.2, 0], [rn, 0.4], [rn, g], [rn + 0.5, g], [rc, g + rc - rn - 0.5],
+                            [rc, h - 0.4], [rc - 0.4, h], [0, h]]);
+}
+module wall_mount() {
+  c = mount_chamfer;
+  translate([0, 0, T]) {
+    difference() {
+      minkowski() {
+        translate([0, 0, c]) linear_extrude(mount_t - 2 * c) offset(-c) mount_outline();
+        union() { translate([0, 0, -c]) cylinder(r1 = 0, r2 = c, h = c, $fn = 16); cylinder(r1 = c, r2 = 0, h = c, $fn = 16); }
+      }
+      // centre notches at the top and the bottom: line them up with a plumb pencil mark
+      for (y = [lock_y + mount_bar[1] / 2, mount_stem[1]]) translate([W / 2, y, mount_t / 2]) rotate(45) cube([2.5, 2.5, mount_t + 2], center = true);
+    }
+    for (sx = [-1, 1]) translate([W / 2 + sx * kh_dx, lock_y, eps]) mirror([0, 0, 1]) mount_peg();
+  }
+}
+
 // ---------- switch plate (print flat) ----------
 module key_plate(keys = [0 : n_keys - 1], x0 = act_x0 - 1, w = act_w + 2) {
   translate([0, 0, plate_z0]) difference() {
@@ -338,7 +376,9 @@ else if (part == "key_plate") translate([0, 0, -plate_z0]) key_plate();
 else if (part == "keycap") keycap(false);
 else if (part == "keycap_dimple") keycap(true);
 else if (part == "key_test") key_test();
-else if (part == "assembly_wall" || part == "assembly_back") to_world() device();
+else if (part == "wall_mount") translate([0, 0, T + mount_t]) mirror([0, 0, 1]) wall_mount();
+else if (part == "assembly_wall") to_world() { device(); color("#6a6a64") wall_mount(); }
+else if (part == "assembly_back") to_world() device();
 else if (part == "assembly_open") device(false);
 else if (part == "exploded") to_world() {
   translate([0, 0, -25]) caps_in_place();
