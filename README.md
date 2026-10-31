@@ -57,12 +57,15 @@ live only in `.env` and in Home Assistant, never in the repository.
 
 ```bash
 cd service
-python -m venv .venv && .venv/bin/pip install -e .
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest -q
+.venv/bin/python -m tablo --config config.yaml
 ```
 
-The emulator renders the board in a browser, so the full panel can be developed
-without the hardware. See [`service/README.md`](service/README.md) for details.
+Then open <http://localhost:8765/emu>: the emulator renders the board in a
+browser, buttons included (mouse or keys 1–8), so the whole panel can be developed
+without the hardware. Without a Home Assistant token the service uses a built-in
+fake home. See [`service/README.md`](service/README.md) for details.
 
 ## Status
 
