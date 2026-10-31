@@ -72,8 +72,8 @@ void setup() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   configTzTime(cfg.tz, cfg.ntp);
   svc::begin();
-  Serial.printf("heap after start: %lu, largest block %lu\n", (unsigned long)ESP.getFreeHeap(),
-                (unsigned long)ESP.getMaxAllocHeap());
+  Serial.printf("heap after start: %lu, largest block %lu\n", (unsigned long)heapFree(),
+                (unsigned long)heapLargest());
 }
 
 void loop() {

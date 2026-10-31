@@ -79,7 +79,7 @@ void drawStatusZone(Canvas &c) {
 
 // Same rows and places as the emulator's: title baseline 48, rows from 84 every 25 px.
 Rect diagLine(int i) {
-  if (i == 0) return {0, 16, W, 40};
+  if (i == 0) return {0, 16, W, DIAG_LINE_MAX_H};
   return {0, (int16_t)(84 - 18 + (i - 1) * 25), W, 24};
 }
 
@@ -124,8 +124,8 @@ void drawDiagLine(Canvas &c, int i) {
       break;
     case 5:
       k = "Free heap";
-      snprintf(v, sizeof v, "%lu B, largest block %lu B", (unsigned long)ESP.getFreeHeap(),
-               (unsigned long)ESP.getMaxAllocHeap());
+      snprintf(v, sizeof v, "%lu B, largest block %lu B", (unsigned long)heapFree(),
+               (unsigned long)heapLargest());
       break;
     case 6:
       k = "Service";

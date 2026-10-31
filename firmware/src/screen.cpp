@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <GxEPD2_BW.h>
 #include <SPI.h>
+#include <soc/soc.h>
 
 #include "buttons.h"
 #include "canvas.h"
@@ -29,8 +30,23 @@ static uint8_t frame0[FRAME_BUF];
 static uint8_t *frames[2] = {frame0, nullptr};
 static int baseIdx = 0;  // frame0 is all zero at start: a white base
 static const uint8_t *base = frame0 + HEADER;  // last base frame, 1 = black
-static uint8_t *shown;                            // what the panel shows now
+// What the panel shows now, 1 = black. Most rows sit in IRAM: malloc cannot use it
+// (32-bit access only), and with three 48 KB images in the ordinary heap Wi-Fi and the
+// WebSocket had a few KB left, so messages and connects failed. Rows are only touched
+// as words; the driver, which reads bytes, gets them through a band buffer.
+static uint32_t *shownIram, *shownDram;
+static int iramRows = 0;
+constexpr int ROW_WORDS = ROW / 4;
+constexpr int BAND = 16;  // rows per write to the driver
+static uint32_t band[BAND * ROW_WORDS];
+
+static uint32_t *shownRow(int y) {
+  return y < iramRows ? shownIram + y * ROW_WORDS : shownDram + (y - iramRows) * ROW_WORDS;
+}
 static Canvas clockZone, statusZone;
+// One diagnostics line at a time, its buffer taken at start: a std::vector that cannot
+// grow aborts, so with the heap short for a moment long press 8 restarted the board.
+static Canvas diagCanvas;
 
 static bool overlay = false, overlayTimed = false, diag = false;
 static uint32_t overlayUntilMs = 0, diagUntilMs = 0;
@@ -41,9 +57,20 @@ static uint32_t lastRefreshMs = 0;
 namespace screen {
 
 void begin() {
-  shown = (uint8_t *)calloc(PAYLOAD, 1);
+  // These caps also match D/IRAM, which is ordinary DRAM seen from the I-bus: the heap
+  // tries pure IRAM first, so shrink until the block lands below the D/IRAM alias.
+  for (iramRows = H; iramRows > 0; iramRows -= 8) {
+    shownIram = (uint32_t *)heap_caps_malloc(iramRows * ROW, MALLOC_CAP_32BIT | MALLOC_CAP_EXEC);
+    if (shownIram && (uintptr_t)shownIram < SOC_DIRAM_IRAM_LOW) break;
+    heap_caps_free(shownIram);
+    shownIram = nullptr;
+  }
+  for (int i = 0; i < iramRows * ROW_WORDS; i++) shownIram[i] = 0;
+  shownDram = (uint32_t *)calloc((H - iramRows) * ROW + 4, 1);  // +4: never a zero-size block
+  Serial.printf("screen: %d of %d shown rows in IRAM\n", iramRows, H);
   frames[1] = (uint8_t *)malloc(FRAME_BUF);
-  if (!shown || !frames[1]) {
+  diagCanvas.resize(W, DIAG_LINE_MAX_H);  // the tallest line; smaller ones reuse the buffer
+  if (!shownDram || !frames[1]) {
     Serial.println("screen: no memory for frame buffers");
     for (;;) delay(1000);
   }
@@ -63,6 +90,15 @@ void zonesChanged() {
   statusZone.resize(cfg.status.w, cfg.status.h);
 }
 
+// Rows y.. of what is shown into the band buffer, which the driver can read by bytes.
+static int fillBand(int y, int n) {
+  for (int r = 0; r < n; r++) {
+    const uint32_t *s = shownRow(y + r);
+    for (int i = 0; i < ROW_WORDS; i++) band[r * ROW_WORDS + i] = s[i];
+  }
+  return n;
+}
+
 // The driver takes 1 = white; frames are 1 = black, hence invert = true.
 // clean: the whole screen goes black, then white, then the image. The driver's fast
 // full update alone leaves traces on black areas, but the cycle takes 5 s instead of 2:
@@ -75,10 +111,12 @@ static void refreshFull(bool clean) {
     epd.writeScreenBuffer(0xFF);
     epd.refresh(false);
   }
-  epd.writeImageForFullRefresh(shown, 0, 0, W, H, true);
+  for (int y = 0; y < H; y += BAND) {
+    int n = fillBand(y, min(BAND, H - y));
+    epd.writeImageForFullRefresh((const uint8_t *)band, 0, y, W, n, true);
+  }
   epd.refresh(false);
-  epd.writeImageAgain(shown, 0, 0, W, H, true);
-  epd.powerOff();
+  epd.powerOff();  // writeImageAgain is a no-op in this driver
   powered = false;
   partials = 0;
   lastRefreshMs = millis();
@@ -87,32 +125,41 @@ static void refreshFull(bool clean) {
 
 static void refreshPart(int x, int y, int w, int h) {
   uint32_t t = millis();
-  epd.writeImagePart(shown, x, y, W, H, x, y, w, h, true);
-  epd.refresh(x, y, w, h);
-  epd.writeImagePartAgain(shown, x, y, W, H, x, y, w, h, true);
+  for (int by = y; by < y + h; by += BAND) {
+    int n = fillBand(by, min(BAND, y + h - by));
+    epd.writeImagePart((const uint8_t *)band, x, 0, W, n, x, by, w, n, true);
+  }
+  epd.refresh(x, y, w, h);  // writeImagePartAgain is a no-op in this driver
   powered = true;
   partials++;
   lastRefreshMs = millis();
   Serial.printf("screen: partial %d,%d %dx%d %lu ms\n", x, y, w, h, lastRefreshMs - t);
 }
 
-// Rows of a new image are compared with what is shown byte by byte:
+// Rows of a new image are compared with what is shown byte by byte (read as words):
 // the bounding box of changed bytes gets a partial update, a big change a full one.
 struct Diff {
   int b0 = ROW, b1 = -1, y0 = H, y1 = -1;
   uint32_t cells = 0;
 
   void row(int y, const uint8_t *next) {
-    uint8_t *s = shown + y * ROW;
-    for (int b = 0; b < ROW; b++) {
-      if (next[b] == s[b]) continue;
-      cells++;
-      if (b < b0) b0 = b;
-      if (b > b1) b1 = b;
+    uint32_t *s = shownRow(y);
+    for (int i = 0; i < ROW_WORDS; i++) {
+      uint32_t n;
+      memcpy(&n, next + 4 * i, 4);
+      uint32_t diff = n ^ s[i];
+      if (!diff) continue;
+      for (int k = 0; k < 4; k++) {
+        if (!(diff >> (8 * k) & 0xFF)) continue;  // little endian: byte k of the word is next[4i + k]
+        int b = 4 * i + k;
+        cells++;
+        if (b < b0) b0 = b;
+        if (b > b1) b1 = b;
+      }
       if (y < y0) y0 = y;
       if (y > y1) y1 = y;
+      s[i] = n;
     }
-    memcpy(s, next, ROW);
   }
 
   void commit(bool full) {
@@ -175,7 +222,7 @@ static void markRow(uint8_t *row, int y) {
 
 // Line by line: a whole-screen canvas would need another 48 KB block.
 static void presentDiag(bool full) {
-  Canvas line;
+  Canvas &line = diagCanvas;
   int li = -1;
   Rect r{0, 0, 0, 0};
   Diff d;

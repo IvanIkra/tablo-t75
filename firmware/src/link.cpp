@@ -86,7 +86,7 @@ static void sendStatus() {
   d["type"] = "status";
   d["rssi"] = WiFi.RSSI();
   d["uptime_s"] = millis() / 1000;
-  d["heap"] = ESP.getFreeHeap();
+  d["heap"] = heapFree();
   d["partials_since_full"] = screen::partialsSinceFull();
   d["ip"] = WiFi.localIP().toString();
   sendNow(d);
@@ -172,8 +172,10 @@ static void applyConfig(JsonObjectConst c) {
 
 static void onText(const uint8_t *data, size_t len) {
   JsonDocument doc;
-  if (deserializeJson(doc, data, len)) {
-    Serial.println("link: bad message");
+  DeserializationError err = deserializeJson(doc, data, len);
+  if (err) {
+    Serial.printf("link: bad message (%s), %u bytes, heap %u: %.60s\n", err.c_str(), (unsigned)len,
+                  (unsigned)heapFree(), (const char *)data);
     return;
   }
   const char *type = doc["type"] | "";
@@ -202,9 +204,8 @@ static void onText(const uint8_t *data, size_t len) {
 static void onEvent(WStype_t type, uint8_t *payload, size_t len) {
   switch (type) {
     case WStype_CONNECTED:
-      // A frame needs one 48 KB block for the whole message.
       Serial.printf("link: connected, heap %u, largest block %u, stack free: net %u, loop %u\n",
-                    (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(),
+                    (unsigned)heapFree(), (unsigned)heapLargest(),
                     (unsigned)uxTaskGetStackHighWaterMark(nullptr),
                     (unsigned)uxTaskGetStackHighWaterMark(xTaskGetHandle("loopTask")));
       st.connected = true;
@@ -248,12 +249,12 @@ static void netTask(void *) {
       if (st.connected) ws.sendTXT(s);
       free(s);
     }
-    if (st.connected && millis() - lastStatusMs >= 60000) {
+    if (millis() - lastStatusMs >= 60000) {
       lastStatusMs = millis();
-      sendStatus();
-      Serial.printf("link: heap %u, lowest %u, largest block %u, net stack free %u\n",
-                    (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
-                    (unsigned)ESP.getMaxAllocHeap(), (unsigned)uxTaskGetStackHighWaterMark(nullptr));
+      if (st.connected) sendStatus();
+      Serial.printf("link: %s, heap %u, lowest %u, largest block %u, net stack free %u\n",
+                    st.connected ? "up" : "down", (unsigned)heapFree(), (unsigned)heapLowest(),
+                    (unsigned)heapLargest(), (unsigned)uxTaskGetStackHighWaterMark(nullptr));
     }
     vTaskDelay(pdMS_TO_TICKS(2));
   }
