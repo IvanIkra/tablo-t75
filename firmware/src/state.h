@@ -6,10 +6,10 @@
 
 // Raise FW_NUMBER for each change worth naming; the commit is added at build time
 // (tools/fw_version.py), so two builds of one number still differ.
-#define FW_NUMBER "0.6"
+#define FW_NUMBER "0.7"
 // What FW_NUMBER changed, a line or two in English: the service shows it on the panel
 // after an update (§5). Write it together with a new FW_NUMBER.
-#define FW_NOTES "Dark theme: white on black, switched in Home Assistant."
+#define FW_NOTES "Updates download from the service: a Wi-Fi stall no longer breaks them."
 #ifndef FW_COMMIT
 #define FW_COMMIT "nogit"
 #endif
@@ -65,6 +65,9 @@ struct State {
   uint32_t baseCrc = 0;
   uint32_t baseId = 0;
   uint32_t lastFrameMs = 0;
+  // An `ota` from the service, for the main loop: the image is at /firmware.bin (§3.3).
+  uint32_t otaSize = 0;
+  char otaMd5[33] = "";
 };
 
 extern Config cfg;

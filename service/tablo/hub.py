@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime as dt
+import hashlib
 import json
 import logging
 import time
@@ -29,6 +30,7 @@ STICKY_KEY = "messages.sticky"
 STICKY_MAX = 20
 DISMISSED_EVENT = "tablo_message_dismissed"  # a sticky message was closed by a button (§5)
 FW_KEY = "device.fw:"  # + device id: the firmware whose welcome was seen, or the first one met
+FIRMWARE_MAX = 0x1E0000  # one app slot of min_spiffs.csv (§10)
 
 
 @dataclass
@@ -64,6 +66,7 @@ class Hub:
         self.last_seen: float | None = None  # last message from any panel; kept after it goes offline
         self.last_rssi: int | None = None
         self.base: protocol.Frame | None = None
+        self.firmware: bytes | None = None  # the image last put up for the panels, in memory only
         self.synced_at: dt.datetime | None = None
         self._frame_id = 0
         self._render_lock = asyncio.Lock()
@@ -364,6 +367,20 @@ class Hub:
         self._data_ok = not self.infomaster.down()
         return {"type": "health", "ha": bool(ha and ha.connected), "data": self._data_ok, "synced_at": synced}
 
+    async def offer_firmware(self, image: bytes) -> list[str]:
+        """§3.3: the panels download the image from /firmware.bin; returns the ids it went to."""
+        if not image or image[0] != 0xE9:
+            raise ValueError("not an ESP32 firmware image")
+        if len(image) > FIRMWARE_MAX:
+            raise ValueError(f"image is {len(image)} bytes, an app slot holds {FIRMWARE_MAX}")
+        self.firmware = image
+        message = {"type": "ota", "size": len(image), "md5": hashlib.md5(image).hexdigest()}
+        devices = list(self.devices.values())
+        for dev in devices:
+            await self._send(dev, message)
+        log.info("firmware of %d bytes offered to %s", len(image), [d.id for d in devices])
+        return [d.id for d in devices]
+
     async def broadcast(self, message: dict) -> None:
         for dev in list(self.devices.values()):
             await self._send(dev, message)
@@ -543,6 +560,8 @@ class Hub:
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
             # The sticky messages still on the panel, oldest first (§5).
             "messages": [{k: m[k] for k in ("title", "sent_at")} for m in self.sticky],
+            "firmware": {"size": len(self.firmware), "md5": hashlib.md5(self.firmware).hexdigest()}
+            if self.firmware else None,
         }
 
 

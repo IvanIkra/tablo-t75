@@ -164,8 +164,13 @@ struct Diff {
     }
   }
 
-  void commit(bool full) {
+  // partialOnly: one partial update whatever the size, 0.8 s instead of 5 s for a full one.
+  void commit(bool full, bool partialOnly = false) {
     if (!full && b1 < 0) return;
+    if (!full && partialOnly) {
+      refreshPart(b0 * 8, y0, (b1 - b0 + 1) * 8, y1 - y0 + 1);
+      return;
+    }
     if (!full && partials >= cfg.maxPartials) full = true;
     if (full) {
       refreshFull(true);
@@ -225,7 +230,7 @@ static void markRow(uint8_t *row, int y) {
 static void drawNotice(Canvas &c, int i) { drawNoticeLine(c, i, noticeText[i]); }
 
 // Diagnostics and notices, line by line: a whole-screen canvas would need another 48 KB block.
-static void presentLines(int lines, void (*draw)(Canvas &, int), bool full) {
+static void presentLines(int lines, void (*draw)(Canvas &, int), bool full, bool partialOnly = false) {
   Canvas &line = diagCanvas;
   int li = -1;
   Rect r{0, 0, 0, 0};
@@ -242,12 +247,14 @@ static void presentLines(int lines, void (*draw)(Canvas &, int), bool full) {
     if (li < lines) blitRow(row, line, r, y);
     d.row(y, row);
   }
-  d.commit(full);
+  d.commit(full, partialOnly);
 }
 
 void present(bool full) {
   if (notice) {
-    presentLines(NOTICE_LINES, drawNotice, full);
+    // The update notice is drawn before the board connects to the computer, which
+    // waits 10 s for it: a full refresh after maxPartials took 5.5 s of them.
+    presentLines(NOTICE_LINES, drawNotice, full, true);
     return;
   }
   if (overlay) {

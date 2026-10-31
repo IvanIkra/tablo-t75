@@ -200,6 +200,11 @@ static void onText(const uint8_t *data, size_t len) {
     // The service took back what it showed (§5); endOverlay draws the base again.
     if (screen::overlayActive()) screen::endOverlay();
     return;
+  } else if (!strcmp(type, "ota")) {
+    // Not here: the update stops the network task, which waits for this message to be handled.
+    strlcpy(st.otaMd5, doc["md5"] | "", sizeof st.otaMd5);
+    st.otaSize = doc["size"] | 0u;
+    return;
   } else if (!strcmp(type, "button_result")) {
     if (!(doc["ok"] | true)) Serial.printf("link: button failed: %s\n", doc["error"] | "?");
     buttons::result(doc["seq"] | 0u);

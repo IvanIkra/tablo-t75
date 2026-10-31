@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -247,3 +248,31 @@ async def test_new_firmware_number_gets_a_welcome_until_a_button_then_sticky_mes
     assert (await _recv(ws)).kind == protocol.KIND_BASE
     assert (await _recv(ws)).payload == sticky.payload
     assert store.get_json("device.fw:test") == "fw-0.5+ccc"
+
+
+async def test_firmware_is_offered_to_the_panel_and_downloaded_with_its_token(client):
+    image = b"\xe9" + bytes(range(256)) * 40
+    resp = await client.put("/api/firmware", data=image, headers=AUTH)
+    assert resp.status == 409  # no panel to update
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    assert (await client.put("/api/firmware", data=image)).status == 401
+    assert (await client.put("/api/firmware", data=b"not firmware", headers=AUTH)).status == 400
+    assert (await client.get("/firmware.bin?token=dev-device-token")).status == 404
+    resp = await client.put("/api/firmware", data=image, headers=AUTH)
+    assert resp.status == 200 and (await resp.json())["devices"] == ["test"]
+    offer = await _recv(ws)
+    assert offer == {"type": "ota", "size": len(image), "md5": hashlib.md5(image).hexdigest()}
+    assert (await client.get("/firmware.bin?token=wrong")).status == 401
+    resp = await client.get("/firmware.bin?token=dev-device-token")
+    assert resp.status == 200 and await resp.read() == image
+    status = await (await client.get("/api/status")).json()
+    assert status["firmware"]["size"] == len(image)
+
+
+async def test_a_full_size_firmware_image_fits_in_a_request(client):
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    image = b"\xe9" + bytes(1_500_000)
+    resp = await client.put("/api/firmware", data=image, headers=AUTH)
+    assert resp.status == 200

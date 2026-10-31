@@ -13,7 +13,7 @@ from PIL import ImageChops
 from . import config as config_mod
 from .config import Config, ConfigError
 from .ha import FakeHA, HomeAssistant
-from .hub import Hub
+from .hub import FIRMWARE_MAX, Hub
 from .render.canvas import unpack
 
 log = logging.getLogger(__name__)
@@ -136,6 +136,30 @@ async def put_config(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def put_firmware(request: web.Request) -> web.Response:
+    """§3.3: a new firmware image; the connected panel downloads it from /firmware.bin."""
+    _require_api_token(request)
+    hub = _hub(request)
+    if not hub.devices:
+        raise web.HTTPConflict(text="no panel connected")
+    image = await request.read()
+    try:
+        devices = await hub.offer_firmware(image)
+    except ValueError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    return web.json_response({"ok": True, "size": len(image), "devices": devices})
+
+
+async def firmware_bin(request: web.Request) -> web.Response:
+    """The panel downloads what put_firmware offered, with its own token."""
+    hub = _hub(request)
+    if request.query.get("token") != hub.cfg.device_token:
+        raise web.HTTPUnauthorized(text="bad device token")
+    if hub.firmware is None:
+        raise web.HTTPNotFound(text="no firmware put up")
+    return web.Response(body=hub.firmware, content_type="application/octet-stream")
+
+
 async def get_demo(request: web.Request) -> web.Response:
     return web.json_response(_hub(request).cfg.demo)
 
@@ -177,7 +201,7 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
 
     ha replaces the fake house (tests); the real HA is used only when none is given and a token is set.
     """
-    app = web.Application()
+    app = web.Application(client_max_size=FIRMWARE_MAX + 4096)  # a firmware image is the biggest body
     real_ha = HomeAssistant(cfg.ha.url, cfg.ha.token) if ha is None and cfg.ha.token else None
     hub = Hub(cfg, ha or FakeHA(), data_dir, real_ha=real_ha)
     app[HUB] = hub
@@ -192,6 +216,8 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     app.router.add_put("/api/config", put_config)
     app.router.add_get("/api/demo", get_demo)
     app.router.add_put("/api/demo", put_demo)
+    app.router.add_put("/api/firmware", put_firmware)
+    app.router.add_get("/firmware.bin", firmware_bin)
     app.router.add_get("/frame.png", frame_png)
     app.router.add_get("/", root)
     app.router.add_get("/emu", emulator_index)
