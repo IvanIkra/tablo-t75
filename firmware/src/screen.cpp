@@ -64,8 +64,14 @@ void zonesChanged() {
 }
 
 // The driver takes 1 = white; frames are 1 = black, hence invert = true.
+// The whole screen goes black, then white, then the image: the driver's fast full
+// update alone leaves traces of the old image on black areas.
 static void refreshFull() {
   uint32_t t = millis();
+  epd.writeScreenBuffer(0x00);
+  epd.refresh(false);
+  epd.writeScreenBuffer(0xFF);
+  epd.refresh(false);
   epd.writeImageForFullRefresh(shown, 0, 0, W, H, true);
   epd.refresh(false);
   epd.writeImageAgain(shown, 0, 0, W, H, true);

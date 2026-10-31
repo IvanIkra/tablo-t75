@@ -30,6 +30,8 @@ SOURCE_ICONS = {
     "ical": "mdi:calendar",
     "ha": "mdi:home-outline",
 }
+# Marks drawn as an icon in place of the room; the others stay words.
+MARK_ICONS = {"optional": "mdi:emoticon-outline"}
 
 
 def render(model: ScreenModel, font_mode: str = "aliased") -> Canvas:
@@ -77,7 +79,7 @@ def _row_y(block, i: int) -> int:
 
 
 def _row(c: Canvas, block, i: int, left: str, right: str = "", left_x: int | None = None,
-         inverted: bool = False, right_font=None) -> None:
+         inverted: bool = False, right_font=None, right_icon: str | None = None) -> None:
     x, _, w, _ = block
     y = _row_y(block, i)
     f = fonts.inter(16, BODY)
@@ -86,9 +88,11 @@ def _row(c: Canvas, block, i: int, left: str, right: str = "", left_x: int | Non
     if inverted:
         c.rect(x + 8, y - 2, w - 16, ROW_H, fill=BLACK)
     lx = left_x if left_x is not None else x + PAD
-    right_w = c.width(right, rf) if right else 0
+    right_w = pixels.ICON if right_icon else c.width(right, rf) if right else 0
     c.text((lx, y), c.fit(left, f, x + w - PAD - lx - right_w - 8), f, fill=fg)
-    if right:
+    if right_icon:
+        c.icon(right_icon, x + w - PAD - pixels.ICON / 2, y + 8, pixels.ICON, fill=fg)
+    elif right:
         c.text((x + w - PAD, y), right, rf, fill=fg, anchor="ra")
 
 
@@ -246,7 +250,7 @@ def _classes(c: Canvas, m: ScreenModel) -> None:
         _row(c, CLASSES, 0, m.classes_problem or "no classes")
     for i, cl in enumerate(m.classes[: _rows(CLASSES)]):
         room = cl.mark if cl.mark else cl.room
-        _row(c, CLASSES, i, cl.subject, room, left_x=x + CLASS_TEXT_X)
+        _row(c, CLASSES, i, cl.subject, room, left_x=x + CLASS_TEXT_X, right_icon=MARK_ICONS.get(cl.mark))
         c.text((x + PAD, _row_y(CLASSES, i)), cl.start.strftime("%H:%M"), fonts.inter(16, "semibold"))
 
 
