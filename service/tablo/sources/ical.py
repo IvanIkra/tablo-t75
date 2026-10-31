@@ -1,4 +1,4 @@
-"""Classes from infomaster's tablo.ics feed (tablo-software.md §7.3).
+"""Classes from infomaster's tablo.ics feed (docs/software §7.3).
 
 The feed has the RUZ classes, consultations and events from the chats, with
 English names already (SUMMARY is shown as it is). Optional events (STATUS:TENTATIVE

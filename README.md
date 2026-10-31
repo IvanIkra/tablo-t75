@@ -10,7 +10,7 @@ just displays the frame, draws its own clock and status line, and reports button
 presses. All the data gathering, layout and logic live on the server, so the
 firmware stays tiny and the panel never has to think.
 
-![panel](tablo-presentation/r3/tablo-hero-en.png)
+![panel](presentation/r3/tablo-hero-en.png)
 
 ## How it works
 
@@ -37,9 +37,9 @@ data sources ──► Python service ──► 48 000-byte 1-bit frame ──�
 | [`service/`](service/) | The Python service — app, hub, protocol, config, store, renderer and data sources — plus a browser emulator of the board and the test suite. |
 | [`firmware/`](firmware/) | ESP32 firmware (PlatformIO + Arduino): frame buffers and diffing, the on-board clock/status/diagnostics, buttons, and over-the-air updates. |
 | [`ha-integration/`](ha-integration/) | A Home Assistant custom component: config forms for buttons, Wi-Fi, sources and screen, device triggers, `tablo.*` services and entities. |
-| [`tablo-cad/`](tablo-cad/) | The enclosure, modelled in OpenSCAD, with exported STLs and preview renders. |
+| [`cad/`](cad/) | The enclosure, modelled in OpenSCAD, with exported STLs and preview renders. |
 | [`docs/`](docs/) | The software design contract, split by area (architecture, protocol, service, sources, HA, firmware, deploy, plan). |
-| [`tablo-presentation/`](tablo-presentation/) | Product renders and the project presentation. |
+| [`presentation/`](presentation/) | Product renders and the project presentation. |
 
 ## Tech stack
 

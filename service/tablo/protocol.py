@@ -1,4 +1,4 @@
-"""Device protocol: binary frame format and JSON messages (tablo-software.md §3)."""
+"""Device protocol: binary frame format and JSON messages (docs/software §3)."""
 
 import struct
 import zlib

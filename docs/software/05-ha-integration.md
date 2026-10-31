@@ -1,6 +1,6 @@
 # Tablo — софт: интеграция Home Assistant (§8)
 
-> Часть проекта софта, индекс — [`tablo-software.md`](../../tablo-software.md). Номера §N сквозные по всем частям.
+> Часть проекта софта, индекс — [`docs/README.md`](../README.md). Номера §N сквозные по всем частям.
 
 ## 8. Интеграция Home Assistant
 

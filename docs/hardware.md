@@ -4,7 +4,7 @@
 
 Рабочее название — **Tablo**, модель **T75**. Статус на 31.10.2026: корпус напечатан и собран, панель работает с прошивкой fw-0.5; сервис в Docker на домашнем сервере, данные от infomaster, интеграция с Home Assistant. Подробный статус софта — в `tablo-software.md`.
 
-![Tablo на столе](tablo-presentation/r3/tablo-hero-en.png)
+![Tablo на столе](../presentation/r3/tablo-hero-en.png)
 
 ---
 
@@ -39,7 +39,7 @@
 
 Good Display **GDEY075T7**: 7.5″, 800×480, чёрно-белый, горизонтально. Раскладка сверстана в настоящих пикселях экрана: основной текст 16 px, часы 64 px.
 
-![Разметка экрана](tablo-presentation/r3/tablo-front-en.png)
+![Разметка экрана](../presentation/r3/tablo-front-en.png)
 
 ### Сетка
 
@@ -114,9 +114,9 @@ Good Display **GDEY075T7**: 7.5″, 800×480, чёрно-белый, гориз�
 
 ## Корпус
 
-Параметрическая модель в OpenSCAD, все размеры в одном файле: [`tablo-cad/tablo.scad`](tablo-cad/tablo.scad). Подробная инструкция по печати и сборке: [`tablo-cad/README.md`](tablo-cad/README.md).
+Параметрическая модель в OpenSCAD, все размеры в одном файле: [`../cad/tablo.scad`](../cad/tablo.scad). Подробная инструкция по печати и сборке: [`../cad/README.md`](../cad/README.md).
 
-![В разобранном виде](tablo-presentation/r3/tablo-exploded-en.png)
+![В разобранном виде](../presentation/r3/tablo-exploded-en.png)
 
 ### Габариты и внешний вид
 
@@ -127,7 +127,7 @@ Good Display **GDEY075T7**: 7.5″, 800×480, чёрно-белый, гориз�
 
 | На стене | На столе | Сзади |
 |---|---|---|
-| ![](tablo-presentation/r3/tablo-wallphoto-en.png) | ![](tablo-presentation/r3/tablo-deskcable-en.png) | ![](tablo-presentation/r3/tablo-bodyback-en.png) |
+| ![](../presentation/r3/tablo-wallphoto-en.png) | ![](../presentation/r3/tablo-deskcable-en.png) | ![](../presentation/r3/tablo-bodyback-en.png) |
 
 ### Печатные детали
 

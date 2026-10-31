@@ -1,4 +1,4 @@
-"""Weather from Open-Meteo (tablo-software.md §7.4).
+"""Weather from Open-Meteo (docs/software §7.4).
 
 No key. One request gives the current weather and the hours ahead; the answer
 is kept in the store, so a restart or a failing poll still shows the forecast,

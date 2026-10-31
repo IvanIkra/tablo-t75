@@ -1,4 +1,4 @@
-// Tablo emulator: does what the firmware will do (tablo-software.md §3–§5, §9).
+// Tablo emulator: does what the firmware will do (docs/software §3–§5, §9).
 // Speaks the device protocol to the service, keeps the base frame, draws the
 // clock, date and status bar itself, inverts tiles instantly on key presses.
 "use strict";

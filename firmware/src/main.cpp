@@ -1,4 +1,4 @@
-// Tablo T75 firmware (tablo-software.md §10): shows frames from the service,
+// Tablo T75 firmware (docs/software §10): shows frames from the service,
 // draws the clock, date and status bar itself, keeps going without the service.
 #include <Arduino.h>
 #include <ArduinoOTA.h>
