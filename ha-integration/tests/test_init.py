@@ -104,8 +104,8 @@ async def test_old_source_settings_are_dropped_on_migration(hass: HomeAssistant,
 async def test_actions(hass: HomeAssistant, entry, hub, monkeypatch):
     calls = []
 
-    async def show_message(title, text, icon=None, duration_s=None):
-        calls.append(("message", title, text, icon, duration_s))
+    async def show_message(title, text, icon=None, duration_s=None, sticky=False):
+        calls.append(("message", title, text, icon, duration_s, sticky))
 
     async def show_qr(ssids=None, duration_s=None):
         calls.append(("qr", ssids, duration_s))
@@ -116,11 +116,13 @@ async def test_actions(hass: HomeAssistant, entry, hub, monkeypatch):
     monkeypatch.setattr(hub, "refetch", lambda sources=None: refetched.append(sources))
     await hass.services.async_call(DOMAIN, "show_message", {"title": "Hi", "text": "there", "icon": "mdi:bell",
                                                             "duration": 10}, blocking=True)
+    await hass.services.async_call(DOMAIN, "show_message", {"title": "Urgent", "sticky": True}, blocking=True)
     await hass.services.async_call(DOMAIN, "show_qr", {"networks": "Home"}, blocking=True)
     await hass.services.async_call(DOMAIN, "refresh_data", {"sources": ["infomaster", "weather"]}, blocking=True)
     await hass.services.async_call(DOMAIN, "refresh_data", {}, blocking=True)
     await hass.services.async_call(DOMAIN, "full_refresh", {}, blocking=True)
-    assert calls == [("message", "Hi", "there", "mdi:bell", 10), ("qr", ["Home"], None)]
+    assert calls == [("message", "Hi", "there", "mdi:bell", 10, False), ("message", "Urgent", "", None, None, True),
+                     ("qr", ["Home"], None)]
     assert refetched == [["infomaster", "weather"], None]
 
 
@@ -139,3 +141,13 @@ async def test_brand_images_served(hass: HomeAssistant, hass_client):
         resp = await client.get(f"/api/brands/integration/{DOMAIN}/{image}")
         assert resp.status == 200, image
         assert await resp.read() == (BRAND / image).read_bytes(), image
+
+
+async def test_sticky_messages_sensor_and_clear(hass: HomeAssistant, entry, hub):
+    await hub.add_sticky("Urgent", "Call back")
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.tablo_sticky_messages")
+    assert state.state == "1" and state.attributes["messages"][0]["title"] == "Urgent"
+    await hass.services.async_call(DOMAIN, "clear_messages", {}, blocking=True)
+    assert hub.sticky == []

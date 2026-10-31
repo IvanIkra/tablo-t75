@@ -25,6 +25,9 @@ RENDER_DEBOUNCE_S = 2.0
 HEALTH_INTERVAL_S = 60
 CHANGED_EVENT = "tablo_changed"  # the HA integration reads the status again (§8.1)
 REFETCH = ("infomaster", "ical", "weather")
+STICKY_KEY = "messages.sticky"
+STICKY_MAX = 20
+DISMISSED_EVENT = "tablo_message_dismissed"  # a sticky message was closed by a button (§5)
 
 
 @dataclass
@@ -35,6 +38,7 @@ class Device:
     status: dict = field(default_factory=dict)
     fw: str | None = None
     last_seen: float = field(default_factory=time.time)
+    overlay: str | None = None  # "sticky" or "timed" while the panel shows a full-screen frame from us
 
 
 class Hub:
@@ -52,6 +56,7 @@ class Hub:
         self.weather = weather.WeatherSource(get_cfg=lambda: self.cfg, store=self.store,
                                              on_change=lambda: self.schedule_render(0.5), now=self.now)
         self.devices: dict[str, Device] = {}
+        self.sticky: list[dict] = self.store.get_json(STICKY_KEY) or []  # oldest first, the panel shows [0]
         self._login_needed: bool | None = None  # what HA last heard of the the university app login (§8.4)
         self._data_ok: bool | None = None  # what the panels last heard of infomaster in `health` (§3.3)
         self.last_seen: float | None = None  # last message from any panel; kept after it goes offline
@@ -206,6 +211,8 @@ class Hub:
     async def send_overlay(self, canvas: Canvas, ttl_s: int) -> None:
         payload = await asyncio.to_thread(_payload, canvas)
         frame = protocol.Frame(protocol.KIND_OVERLAY, max(1, min(ttl_s, 0xFFFF)), self._next_id(), payload)
+        for dev in self.devices.values():
+            dev.overlay = "timed"
         await self._broadcast_frame(frame)
 
     async def show_qr(self, ssids: list[str] | None = None, duration_s: int | None = None) -> None:
@@ -216,9 +223,84 @@ class Hub:
         await self.send_overlay(canvas, duration_s or self.cfg.qr_duration_s)
 
     async def show_message(self, title: str, text: str, icon: str | None = None,
-                           duration_s: int | None = None) -> None:
+                           duration_s: int | None = None, sticky: bool = False) -> None:
+        if sticky:
+            await self.add_sticky(title, text, icon)
+            return
         canvas = await asyncio.to_thread(overlays.message, title, text, icon, self.cfg.display.font_mode)
         await self.send_overlay(canvas, duration_s or self.cfg.message_duration_s)
+
+    # --- sticky messages (§5) ---------------------------------------------------
+
+    async def add_sticky(self, title: str, text: str, icon: str | None = None) -> None:
+        """Queued after the waiting ones; kept in the store, so a restart or a reconnect does not lose it."""
+        msg = {"title": title, "text": text, "icon": icon, "sent_at": self.now().isoformat(timespec="minutes")}
+        self.sticky = (self.sticky + [msg])[-STICKY_MAX:]
+        self.store.put_json(STICKY_KEY, self.sticky)
+        self.notify("messages")
+        await self._show_sticky(list(self.devices.values()))
+
+    async def clear_sticky(self) -> int:
+        """`tablo.clear_messages`: drop the waiting ones and take the shown one off the panels."""
+        count, self.sticky = len(self.sticky), []
+        self.store.put_json(STICKY_KEY, self.sticky)
+        await self._close_sticky(list(self.devices.values()))
+        if count:
+            self.notify("messages")
+        return count
+
+    async def _show_sticky(self, devices: list[Device]) -> None:
+        """The oldest waiting message, with ttl 0: the panel keeps it until a button."""
+        if not self.sticky or not devices:
+            return
+        m = self.sticky[0]
+        canvas = await asyncio.to_thread(overlays.sticky_message, m["title"], m["text"], m.get("icon"),
+                                         self._sent_label(m["sent_at"]), len(self.sticky),
+                                         self.cfg.display.font_mode)
+        payload = await asyncio.to_thread(_payload, canvas)
+        data = protocol.encode_frame(protocol.Frame(protocol.KIND_OVERLAY, 0, self._next_id(), payload))
+        for dev in devices:
+            dev.overlay = "sticky"
+            await self._send(dev, data)
+
+    async def _close_sticky(self, devices: list[Device]) -> None:
+        for dev in devices:
+            if dev.overlay == "sticky":
+                dev.overlay = None
+                await self._send(dev, {"type": "close_overlay"})
+
+    def _sent_label(self, sent_at: str) -> str:
+        """"14:32" today, "Oct 30, 14:32" before: the clock is not drawn over a full-screen frame."""
+        sent = dt.datetime.fromisoformat(sent_at)
+        if sent.date() == self.now().date():
+            return sent.strftime("%H:%M")
+        return f"{sent:%b} {sent.day}, {sent:%H:%M}"
+
+    async def _on_overlay_closed(self, dev: Device, reason: str | None) -> None:
+        shown, dev.overlay = dev.overlay, None
+        if shown == "sticky":
+            if reason != "button":
+                # A panel before fw-0.3 reads ttl 0 as "close now"; showing it again would loop.
+                log.warning("device %s closed a sticky message by %s; its firmware %s waits for no button",
+                            dev.id, reason, dev.fw)
+                return
+            if self.sticky:
+                done = self.sticky.pop(0)
+                self.store.put_json(STICKY_KEY, self.sticky)
+                self.notify("messages")
+                ha = self.real_ha or self.ha
+                if ha is not None and ha.connected:
+                    self._spawn(self._fire(ha, DISMISSED_EVENT, {
+                        "title": done["title"], "text": done["text"], "sent_at": done["sent_at"],
+                        "waiting": len(self.sticky)}))
+            others = [d for d in self.devices.values() if d is not dev]
+            if self.sticky:
+                await self._show_sticky([dev, *others])
+            else:
+                await self._close_sticky(others)
+        elif self.sticky:
+            # A QR or a timed message went over the sticky one: it comes back.
+            await self._show_sticky([dev])
 
     async def _broadcast_frame(self, frame: protocol.Frame) -> None:
         data = protocol.encode_frame(frame)
@@ -308,12 +390,15 @@ class Hub:
             await self._send(dev, self.health_message())
             if msg.get("last_crc") != frame.crc:
                 await self._send(dev, protocol.encode_frame(frame))
+            await self._show_sticky([dev])
         elif kind == "status":
             dev.status.update({k: v for k, v in msg.items() if k != "type"})
             self._keep_rssi(dev)
         elif kind == "button":
             self._spawn(self._on_button(dev, msg))
-        elif kind in ("overlay_closed", "frame_ack"):
+        elif kind == "overlay_closed":
+            await self._on_overlay_closed(dev, msg.get("reason"))
+        elif kind == "frame_ack":
             log.debug("device %s: %s", dev.id, msg)
         else:
             log.info("device %s: unknown message type %r", dev.id, kind)
@@ -416,6 +501,8 @@ class Hub:
                        "login_needed": self.infomaster.login_needed()},
             "ical": vars(self.ical.status),
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
+            # The sticky messages still on the panel, oldest first (§5).
+            "messages": [{k: m[k] for k in ("title", "sent_at")} for m in self.sticky],
         }
 
 

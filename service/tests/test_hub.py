@@ -141,3 +141,69 @@ async def test_emulator_files_and_fonts_are_revalidated(client):
     assert page.headers["Cache-Control"] == "no-store"
     html = await page.text()
     assert "/emu/static/emu.js?v=" in html and "/emu/static/emu.css?v=" in html
+
+
+async def _no_message(ws):
+    with pytest.raises(TimeoutError):
+        await ws.receive(timeout=0.2)
+
+
+async def test_sticky_messages_wait_for_a_button_in_order(client):
+    hub, ha = client.app[HUB], client.app[HUB].ha
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    for title in ("First", "Second"):
+        resp = await client.post("/api/overlay/message", json={"title": title, "sticky": True}, headers=AUTH)
+        assert resp.status == 200
+        overlay = await _recv(ws)
+        assert overlay.kind == protocol.KIND_OVERLAY and overlay.ttl_s == 0
+    status = await (await client.get("/api/status")).json()
+    assert [m["title"] for m in status["messages"]] == ["First", "Second"]
+
+    # A reconnect gets the oldest one again after the base frame.
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    shown = await _recv(ws)
+    assert shown.ttl_s == 0 and shown.payload == overlay.payload
+
+    await ws.send_json({"type": "overlay_closed", "reason": "button"})
+    assert (await _recv(ws)).ttl_s == 0  # the second one
+    assert [m["title"] for m in hub.sticky] == ["Second"]
+    assert any(e == "tablo_message_dismissed" and d["title"] == "First" and d["waiting"] == 1 for e, d in ha.events)
+    await ws.send_json({"type": "overlay_closed", "reason": "button"})
+    await _no_message(ws)
+    assert hub.sticky == [] and hub.store.get_json("messages.sticky") == []
+
+
+async def test_sticky_message_comes_back_after_a_timed_one(client):
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    await client.post("/api/overlay/message", json={"title": "Urgent", "sticky": True}, headers=AUTH)
+    sticky = await _recv(ws)
+    await client.post("/api/overlay/qr", json={}, headers=AUTH)
+    assert (await _recv(ws)).ttl_s > 0
+    await ws.send_json({"type": "overlay_closed", "reason": "ttl"})
+    assert (await _recv(ws)).payload == sticky.payload
+    assert len(client.app[HUB].sticky) == 1
+
+
+async def test_sticky_message_closed_by_old_firmware_is_not_sent_again(client):
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    await client.post("/api/overlay/message", json={"title": "Urgent", "sticky": True}, headers=AUTH)
+    await _recv(ws)
+    await ws.send_json({"type": "overlay_closed", "reason": "ttl"})
+    await _no_message(ws)
+    assert len(client.app[HUB].sticky) == 1
+
+
+async def test_clear_messages_takes_the_shown_one_off(client):
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    await client.post("/api/overlay/message", json={"title": "Urgent", "sticky": True}, headers=AUTH)
+    await _recv(ws)
+    assert (await client.delete("/api/messages")).status == 401
+    resp = await client.delete("/api/messages", headers=AUTH)
+    assert (await resp.json()) == {"cleared": 1}
+    assert (await _recv(ws)) == {"type": "close_overlay"}
+    assert client.app[HUB].sticky == []

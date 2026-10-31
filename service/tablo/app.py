@@ -72,9 +72,15 @@ async def overlay_message(request: web.Request) -> web.Response:
     _require_api_token(request)
     data = await _json(request)
     await _hub(request).show_message(
-        str(data.get("title", "")), str(data.get("text", "")), data.get("icon"), data.get("duration_s")
+        str(data.get("title", "")), str(data.get("text", "")), data.get("icon"), data.get("duration_s"),
+        sticky=bool(data.get("sticky")),
     )
     return web.json_response({"ok": True})
+
+
+async def clear_messages(request: web.Request) -> web.Response:
+    _require_api_token(request)
+    return web.json_response({"cleared": await _hub(request).clear_sticky()})
 
 
 async def refresh(request: web.Request) -> web.Response:
@@ -176,6 +182,7 @@ def create_app(cfg: Config, ha=None, data_dir: Path | None = None, periodic: boo
     app.router.add_get("/api/status", status)
     app.router.add_post("/api/overlay/qr", overlay_qr)
     app.router.add_post("/api/overlay/message", overlay_message)
+    app.router.add_delete("/api/messages", clear_messages)
     app.router.add_post("/api/refresh", refresh)
     app.router.add_get("/api/config", get_config)
     app.router.add_put("/api/config", put_config)

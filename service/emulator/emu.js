@@ -410,7 +410,8 @@ function onFrame(buffer) {
 
   if (kind === 1) {
     closeLocalScreens();
-    st.overlay = { payload, timer: setTimeout(() => endOverlay("ttl"), ttl * 1000) };
+    // ttl 0: stays until a button closes it (§5).
+    st.overlay = { payload, timer: ttl ? setTimeout(() => endOverlay("ttl"), ttl * 1000) : null };
   } else if (st.overlay || st.diag) {
     st.pendingBase = { payload, crc, id };
   } else {
@@ -438,7 +439,7 @@ function closeLocalScreens() {
 function endOverlay(reason) {
   if (!st.overlay) return;
   closeLocalScreens();
-  send({ type: "overlay_closed", reason });
+  if (reason) send({ type: "overlay_closed", reason });  // none when the service closed it
   if (st.pendingBase) { acceptBase(st.pendingBase.payload, st.pendingBase.crc, st.pendingBase.id); st.pendingBase = null; }
   present();
 }
@@ -461,6 +462,7 @@ function onMessage(msg) {
       break;
     }
     case "full_refresh": present(true); return;
+    case "close_overlay": endOverlay(null); return;
   }
   present();
 }

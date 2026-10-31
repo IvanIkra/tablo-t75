@@ -44,9 +44,10 @@
 | `GET /api/config` | Текущий конфиг без секретов: интеграция берёт его при подключении (§8.1) |
 | `PUT /api/config` | Интеграция присылает полный конфиг (§8) |
 | `POST /api/overlay/qr` | `{networks: [...], duration_s}` |
-| `POST /api/overlay/message` | `{title, text, icon, duration_s}` |
+| `POST /api/overlay/message` | `{title, text, icon, duration_s, sticky}`: `sticky: true` — висящее сообщение в очередь, `duration_s` не нужен (§5) |
+| `DELETE /api/messages` | Очистить висящие сообщения и снять экран с платы; ответ `{cleared: N}` |
 | `POST /api/refresh` | `{full: bool, refetch: bool, sources: [...]}`: `refetch` опрашивает источники сейчас (`infomaster`, `ical`, `weather`; без `sources` — все). У infomaster «обновить сейчас» нет: Tablo только заново читает его API |
-| `GET /api/status` | Состояние платы, источников, HA; `infomaster` — `ok_at`, `error`, `down`; `hseapp` — статус the university app из infomaster и `login_needed` для уведомления HA (§8.4) |
+| `GET /api/status` | Состояние платы, источников, HA; `messages` — висящие сообщения (`title`, `sent_at`, старые первыми); `infomaster` — `ok_at`, `error`, `down`; `hseapp` — статус the university app из infomaster и `login_needed` для уведомления HA (§8.4) |
 | `GET /frame.png` | Текущий кадр картинкой |
 | `GET /emu` | Эмулятор (§9) |
 

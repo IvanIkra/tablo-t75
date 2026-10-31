@@ -18,7 +18,7 @@ uint8_t setBase(const uint8_t *payload);
 uint8_t *receiveBuffer();
 void zonesChanged();                   // after a config with other zones
 
-void showOverlay(const uint8_t *payload, uint16_t ttl_s);  // full-screen frame (§5)
+void showOverlay(const uint8_t *payload, uint16_t ttl_s);  // full-screen frame, ttl 0 = until a button (§5)
 bool overlayActive();
 bool overlayExpired();
 void endOverlay();

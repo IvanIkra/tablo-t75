@@ -5,7 +5,7 @@
 
 // Raise FW_NUMBER for each change worth naming; the commit is added at build time
 // (tools/fw_version.py), so two builds of one number still differ.
-#define FW_NUMBER "0.2"
+#define FW_NUMBER "0.3"
 #ifndef FW_COMMIT
 #define FW_COMMIT "nogit"
 #endif

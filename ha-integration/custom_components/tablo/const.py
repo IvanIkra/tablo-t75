@@ -10,7 +10,8 @@ OPT_BOT = "bot"  # username of the infomaster bot, for the HSE login link; never
 DEFAULT_URL = "http://192.168.1.50:8765"
 
 BUTTON_EVENT = "tablo_button"  # fired by the service: {button, press}
-CHANGED_EVENT = "tablo_changed"  # fired by the service: {kind: "status"}
+CHANGED_EVENT = "tablo_changed"  # fired by the service: {kind: "status" / "messages"}
+DISMISSED_EVENT = "tablo_message_dismissed"  # fired by the service: {title, text, sent_at, waiting}
 
 POLL_SECONDS = 60  # events bring changes at once; the poll catches missed ones and the Wi-Fi level
 

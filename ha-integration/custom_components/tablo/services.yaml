@@ -36,6 +36,12 @@ show_message:
           min: 5
           max: 600
           unit_of_measurement: s
+    sticky:
+      default: false
+      selector:
+        boolean:
+
+clear_messages:
 
 full_refresh:
 

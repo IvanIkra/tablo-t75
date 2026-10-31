@@ -1,11 +1,11 @@
-"""Full-screen overlays drawn by the service: Wi-Fi QR and message (§5)."""
+"""Full-screen overlays drawn by the service: Wi-Fi QR, message and sticky message (§5)."""
 
 import segno
 from segno import helpers
 
 from ..config import WifiNetwork
 from . import fonts
-from .canvas import BLACK, Canvas
+from .canvas import BLACK, WHITE, Canvas
 
 MARGIN = 40
 
@@ -66,4 +66,38 @@ def message(title: str, text: str, icon: str | None = None, font_mode: str = "al
         lines += c.wrap(para, body, 800 - 2 * MARGIN, max_lines) or [""]
     for i, line in enumerate(lines[:max_lines]):
         c.text((MARGIN, y + i * line_h), line, body)
+    return c
+
+
+def sticky_message(title: str, text: str, icon: str | None, sent: str, waiting: int,
+                   font_mode: str = "aliased") -> Canvas:
+    """A message that stays until a button: black title bar and frame, so it is not taken for the main screen."""
+    c = Canvas(font_mode)
+    bar_h, frame_w = 96, 8
+    c.rect(0, 0, 800, 480, outline=BLACK, width=frame_w)
+    c.rect(0, 0, 800, bar_h, fill=BLACK)
+    x = MARGIN
+    if icon:
+        c.icon(icon, MARGIN + 28, bar_h // 2, 56, fill=WHITE)
+        x = MARGIN + 76
+    title_font = fonts.inter(36, "semibold")
+    c.text((x, bar_h // 2), c.fit(title or "", title_font, 800 - MARGIN - x), title_font, fill=WHITE, anchor="lm")
+
+    foot_y = 480 - frame_w - 56
+    body = fonts.inter(28)
+    y, line_h = bar_h + 28, 40
+    max_lines = (foot_y - 12 - y) // line_h
+    lines: list[str] = []
+    for para in (text or "").split("\n"):
+        lines += c.wrap(para, body, 800 - 2 * MARGIN, max_lines) or [""]
+    if len(lines) > max_lines:
+        lines = lines[:max_lines - 1] + [c.fit(lines[max_lines - 1] + " …", body, 800 - 2 * MARGIN)]
+    for i, line in enumerate(lines):
+        c.text((MARGIN, y + i * line_h), line, body)
+
+    c.hline(MARGIN, 800 - MARGIN, foot_y)
+    small = fonts.inter(20)
+    left = sent if waiting <= 1 else f"{sent} · 1 of {waiting}"
+    c.text((MARGIN, foot_y + 28), left, small, anchor="lm")
+    c.text((800 - MARGIN, foot_y + 28), "Press any button to close", fonts.inter(20, "semibold"), anchor="rm")
     return c

@@ -189,6 +189,9 @@
       },
       "last_contact": {
         "name": "Last contact"
+      },
+      "messages": {
+        "name": "Sticky messages"
       }
     }
   },
@@ -246,9 +249,17 @@
         },
         "duration": {
           "name": "Duration",
-          "description": "Seconds on screen. Default 30."
+          "description": "Seconds on screen. Default 30. Ignored for a sticky message."
+        },
+        "sticky": {
+          "name": "Sticky",
+          "description": "Stays until a button is pressed and comes back after a restart. Several wait in a queue."
         }
       }
+    },
+    "clear_messages": {
+      "name": "Clear messages",
+      "description": "Drops the sticky messages and takes the shown one off the panel."
     },
     "full_refresh": {
       "name": "Full refresh",

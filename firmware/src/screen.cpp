@@ -32,7 +32,7 @@ static const uint8_t *base = frame0 + HEADER;  // last base frame, 1 = black
 static uint8_t *shown;                            // what the panel shows now
 static Canvas clockZone, statusZone;
 
-static bool overlay = false, diag = false;
+static bool overlay = false, overlayTimed = false, diag = false;
 static uint32_t overlayUntilMs = 0, diagUntilMs = 0;
 static uint16_t partials = 0;
 static bool powered = false;
@@ -239,6 +239,7 @@ uint8_t *receiveBuffer() { return frames[1 - baseIdx]; }
 void showOverlay(const uint8_t *payload, uint16_t ttl_s) {
   overlay = true;
   diag = false;  // a screen from the service replaces the local one
+  overlayTimed = ttl_s != 0;  // 0: stays until a button closes it (§5)
   overlayUntilMs = millis() + ttl_s * 1000UL;
   Diff d;
   for (int y = 0; y < H; y++) d.row(y, payload + y * ROW);
@@ -246,7 +247,7 @@ void showOverlay(const uint8_t *payload, uint16_t ttl_s) {
 }
 
 bool overlayActive() { return overlay; }
-bool overlayExpired() { return overlay && (int32_t)(millis() - overlayUntilMs) >= 0; }
+bool overlayExpired() { return overlay && overlayTimed && (int32_t)(millis() - overlayUntilMs) >= 0; }
 
 void endOverlay() {
   overlay = false;

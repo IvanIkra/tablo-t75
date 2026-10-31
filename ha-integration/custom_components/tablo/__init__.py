@@ -35,6 +35,7 @@ SHOW_MESSAGE_SCHEMA = vol.Schema({
     vol.Optional("text", default=""): cv.string,
     vol.Optional("icon"): cv.icon,
     vol.Optional("duration"): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
+    vol.Optional("sticky", default=False): cv.boolean,
 })
 REFRESH_DATA_SCHEMA = vol.Schema({vol.Optional("sources"): vol.All(cv.ensure_list, [vol.In(SOURCES)])})
 
@@ -60,7 +61,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def show_message(call_: ServiceCall) -> None:
         d = call_.data
-        await call(coordinator().api.show_message(d["title"], d["text"], d.get("icon"), d.get("duration")))
+        await call(coordinator().api.show_message(d["title"], d["text"], d.get("icon"), d.get("duration"),
+                                                  d["sticky"]))
+
+    async def clear_messages(call_: ServiceCall) -> None:
+        await call(coordinator().api.clear_messages())
 
     async def full_refresh(call_: ServiceCall) -> None:
         await call(coordinator().api.refresh(full=True))
@@ -70,6 +75,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     hass.services.async_register(DOMAIN, "show_qr", show_qr, SHOW_QR_SCHEMA)
     hass.services.async_register(DOMAIN, "show_message", show_message, SHOW_MESSAGE_SCHEMA)
+    hass.services.async_register(DOMAIN, "clear_messages", clear_messages, vol.Schema({}))
     hass.services.async_register(DOMAIN, "full_refresh", full_refresh, vol.Schema({}))
     hass.services.async_register(DOMAIN, "refresh_data", refresh_data, REFRESH_DATA_SCHEMA)
     return True

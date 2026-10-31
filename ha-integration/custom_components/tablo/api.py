@@ -47,9 +47,13 @@ class TabloApi:
     async def show_qr(self, networks: list[str] | None, duration_s: int | None) -> None:
         await self._request("POST", "/api/overlay/qr", {"networks": networks, "duration_s": duration_s})
 
-    async def show_message(self, title: str, text: str, icon: str | None, duration_s: int | None) -> None:
+    async def show_message(self, title: str, text: str, icon: str | None, duration_s: int | None,
+                           sticky: bool = False) -> None:
         await self._request("POST", "/api/overlay/message",
-                            {"title": title, "text": text, "icon": icon, "duration_s": duration_s})
+                            {"title": title, "text": text, "icon": icon, "duration_s": duration_s, "sticky": sticky})
+
+    async def clear_messages(self) -> int:
+        return (await self._request("DELETE", "/api/messages"))["cleared"]
 
     async def refresh(self, full: bool = False, sources: list[str] | None = None, refetch: bool = False) -> None:
         body: dict[str, Any] = {"full": full, "refetch": refetch}

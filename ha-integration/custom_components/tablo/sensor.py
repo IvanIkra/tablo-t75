@@ -1,8 +1,9 @@
-"""Wi-Fi level and the last contact of the panel (§8.4)."""
+"""Wi-Fi level, the last contact of the panel and the sticky messages on it (§8.4)."""
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory
@@ -16,7 +17,8 @@ from .entity import TabloEntity
 async def async_setup_entry(hass: HomeAssistant, entry: TabloConfigEntry,
                             async_add_entities: AddConfigEntryEntitiesCallback) -> None:
     coordinator = entry.runtime_data
-    async_add_entities([SignalSensor(coordinator, "wifi_signal"), LastContactSensor(coordinator, "last_contact")])
+    async_add_entities([SignalSensor(coordinator, "wifi_signal"), LastContactSensor(coordinator, "last_contact"),
+                        MessagesSensor(coordinator, "messages")])
 
 
 class SignalSensor(TabloEntity, SensorEntity):
@@ -38,3 +40,19 @@ class LastContactSensor(TabloEntity, SensorEntity):
     def native_value(self) -> datetime | None:
         seen = self.panel.get("last_seen")
         return dt_util.parse_datetime(seen) if seen else None
+
+
+class MessagesSensor(TabloEntity, SensorEntity):
+    """How many sticky messages wait for a button; their titles, oldest first, in `messages`."""
+
+    @property
+    def _messages(self) -> list[dict]:
+        return self.coordinator.data.status.get("messages", [])
+
+    @property
+    def native_value(self) -> int:
+        return len(self._messages)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"messages": self._messages}
