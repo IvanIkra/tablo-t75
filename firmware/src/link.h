@@ -4,8 +4,8 @@
 
 namespace svc {
 
-void begin();
-void loop();
+void begin();  // starts the network task
+void loop();   // main loop: handles what the network task received
 void overlayClosed(const char *reason);  // "button" / "ttl"
 // false when the service is not connected: the press did not go anywhere.
 bool sendButton(int id, const char *press, uint32_t seq, bool local);

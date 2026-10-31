@@ -20,8 +20,16 @@ constexpr uint32_t POWER_OFF_IDLE_MS = 5000;
 
 static GxEPD2_750_GDEY075T7 epd(PIN_CS, PIN_DC, PIN_RST, PIN_BUSY);
 
-static uint8_t *base;   // last base frame, 1 = black
-static uint8_t *shown;  // what the panel shows now
+// Two whole messages (header + payload + the library's terminator): the base frame
+// is in one, the next frame is received into the other (link.cpp), and a valid new
+// base just swaps them. Both are taken at start: one heap block of 48 KB for a frame
+// is not always there later on bad Wi-Fi. One is static, two do not fit in .bss.
+constexpr size_t FRAME_BUF = HEADER + PAYLOAD + 1;
+static uint8_t frame0[FRAME_BUF];
+static uint8_t *frames[2] = {frame0, nullptr};
+static int baseIdx = 0;  // frame0 is all zero at start: a white base
+static const uint8_t *base = frame0 + HEADER;  // last base frame, 1 = black
+static uint8_t *shown;                            // what the panel shows now
 static Canvas clockZone, statusZone;
 
 static bool overlay = false, diag = false;
@@ -33,9 +41,9 @@ static uint32_t lastRefreshMs = 0;
 namespace screen {
 
 void begin() {
-  base = (uint8_t *)calloc(PAYLOAD, 1);
   shown = (uint8_t *)calloc(PAYLOAD, 1);
-  if (!base || !shown) {
+  frames[1] = (uint8_t *)malloc(FRAME_BUF);
+  if (!shown || !frames[1]) {
     Serial.println("screen: no memory for frame buffers");
     for (;;) delay(1000);
   }
@@ -208,9 +216,14 @@ uint8_t setBase(const uint8_t *payload) {
       if (memcmp(base + y * ROW + b0, payload + y * ROW + b0, b1 - b0)) changed |= 1 << i;
     }
   }
-  memcpy(base, payload, PAYLOAD);
+  uint8_t *spare = frames[1 - baseIdx];
+  if (payload != spare + HEADER) memcpy(spare + HEADER, payload, PAYLOAD);
+  baseIdx = 1 - baseIdx;
+  base = spare + HEADER;
   return changed;
 }
+
+uint8_t *receiveBuffer() { return frames[1 - baseIdx]; }
 
 void showOverlay(const uint8_t *payload, uint16_t ttl_s) {
   overlay = true;

@@ -13,6 +13,9 @@ void present(bool full = false);
 
 // Keep a new base frame; present() shows it. Returns the button tiles it changed, bit per tile.
 uint8_t setBase(const uint8_t *payload);
+// Where the next frame is received: the frame buffer that is not the base,
+// HEADER + PAYLOAD + 1 bytes. setBase on a payload in it takes it over without a copy.
+uint8_t *receiveBuffer();
 void zonesChanged();                   // after a config with other zones
 
 void showOverlay(const uint8_t *payload, uint16_t ttl_s);  // full-screen frame (§5)

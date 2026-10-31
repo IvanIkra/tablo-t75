@@ -10,6 +10,9 @@
 #include "secrets.h"
 #include "state.h"
 
+// The loop needs about 3 KB; the rest of the default 8 KB is heap for the 48 KB frame block.
+SET_LOOP_TASK_STACK_SIZE(6 * 1024);
+
 static void startOta() {
   ArduinoOTA.setHostname("tablo");
   ArduinoOTA.setPassword(OTA_PASSWORD);
@@ -88,8 +91,8 @@ void loop() {
     screen::present();
   }
   if (otaStarted) ArduinoOTA.handle();
-  svc::loop();
   buttons::loop();
+  svc::loop();
   if (millis() - lastTickMs >= 1000) {
     lastTickMs = millis();
     tick();

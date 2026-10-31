@@ -9,15 +9,64 @@
 #include "secrets.h"
 #include "state.h"
 
+// The WebSocket lives in its own task on core 0: on bad Wi-Fi a connect attempt or
+// a 48 KB frame holds it for seconds, and the main loop (panel, buttons, clock) must
+// not wait for that. Everything that touches the panel or the state still runs in
+// the main loop: a received message is handed over in place (the library's buffer,
+// no room for a copy) and the network task waits until it is handled; messages to
+// the service go the other way through a queue.
 static WebSocketsClient ws;
 static const uint16_t BACKOFF_S[] = {1, 2, 4, 8, 16, 30};
 static uint8_t backoffIdx = 0;
 static uint32_t lastStatusMs = 0;
 
-static bool send(JsonDocument &doc) {
+struct Inbound {
+  bool binary;
+  const uint8_t *data;
+  size_t len;
+};
+static QueueHandle_t inbox, outbox;  // Inbound, char * (malloc'd JSON)
+
+// A frame is received straight into the screen's spare frame buffer
+// (tools/patch_websockets.py): on bad Wi-Fi the TCP stack holds out-of-order pieces
+// of it, and by the time the library asked for 48 KB the heap had no such block left
+// and it dropped the link. Only the network task allocates; a valid base frame then
+// becomes the screen's base in place, and the other buffer is the spare.
+static SemaphoreHandle_t handled;
+static volatile bool linkChanged = false;
+static uint8_t *frameRx = nullptr;
+
+void *ws_payload_alloc(size_t size) {
+  if (size > 4096 && size <= HEADER + PAYLOAD + 1 && !frameRx) {
+    frameRx = screen::receiveBuffer();
+    return frameRx;
+  }
+  return malloc(size);
+}
+
+void ws_payload_free(void *p) {
+  if (p == frameRx) frameRx = nullptr;
+  else free(p);
+}
+
+// Network task only.
+static bool sendNow(JsonDocument &doc) {
   String s;
   serializeJson(doc, s);
   return ws.sendTXT(s);
+}
+
+// Main loop: queued for the network task.
+static bool post(JsonDocument &doc) {
+  size_t n = measureJson(doc) + 1;
+  char *s = (char *)malloc(n);
+  if (!s) return false;
+  serializeJson(doc, s, n);
+  if (xQueueSend(outbox, &s, 0) != pdTRUE) {
+    free(s);
+    return false;
+  }
+  return true;
 }
 
 static void sendHello() {
@@ -29,7 +78,7 @@ static void sendHello() {
   else d["last_crc"] = nullptr;
   d["rssi"] = WiFi.RSSI();
   d["uptime_s"] = millis() / 1000;
-  send(d);
+  sendNow(d);
 }
 
 static void sendStatus() {
@@ -40,7 +89,7 @@ static void sendStatus() {
   d["heap"] = ESP.getFreeHeap();
   d["partials_since_full"] = screen::partialsSinceFull();
   d["ip"] = WiFi.localIP().toString();
-  send(d);
+  sendNow(d);
 }
 
 static uint32_t le32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
@@ -75,7 +124,7 @@ static void onFrame(const uint8_t *data, size_t len) {
   JsonDocument d;
   d["type"] = "frame_ack";
   d["frame_id"] = id;
-  send(d);
+  post(d);
 }
 
 static void readRect(JsonVariantConst v, Rect &r) {
@@ -150,14 +199,16 @@ static void onEvent(WStype_t type, uint8_t *payload, size_t len) {
   switch (type) {
     case WStype_CONNECTED:
       // A frame needs one 48 KB block for the whole message.
-      Serial.printf("link: connected, heap %u, largest block %u\n", (unsigned)ESP.getFreeHeap(),
-                    (unsigned)ESP.getMaxAllocHeap());
+      Serial.printf("link: connected, heap %u, largest block %u, stack free: net %u, loop %u\n",
+                    (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(),
+                    (unsigned)uxTaskGetStackHighWaterMark(nullptr),
+                    (unsigned)uxTaskGetStackHighWaterMark(xTaskGetHandle("loopTask")));
       st.connected = true;
       backoffIdx = 0;
       ws.setReconnectInterval(BACKOFF_S[0] * 1000UL);
       sendHello();
       lastStatusMs = millis();
-      screen::present();
+      linkChanged = true;
       break;
     case WStype_DISCONNECTED: {
       if (st.connected) {
@@ -169,23 +220,47 @@ static void onEvent(WStype_t type, uint8_t *payload, size_t len) {
       uint16_t delayS = BACKOFF_S[min<int>(backoffIdx, sizeof BACKOFF_S / sizeof *BACKOFF_S - 1)];
       if (backoffIdx < 255) backoffIdx++;
       ws.setReconnectInterval(delayS * 1000UL);
-      screen::present();
+      linkChanged = true;
       break;
     }
     case WStype_TEXT:
-      onText(payload, len);
+    case WStype_BIN: {
+      // The payload is only valid inside this callback: wait for the main loop.
+      Inbound in{type == WStype_BIN, payload, len};
+      xQueueSend(inbox, &in, portMAX_DELAY);
+      xSemaphoreTake(handled, portMAX_DELAY);
       break;
-    case WStype_BIN:
-      onFrame(payload, len);
-      break;
+    }
     default:
       break;
+  }
+}
+
+static void netTask(void *) {
+  for (;;) {
+    ws.loop();
+    char *s;
+    while (xQueueReceive(outbox, &s, 0) == pdTRUE) {
+      if (st.connected) ws.sendTXT(s);
+      free(s);
+    }
+    if (st.connected && millis() - lastStatusMs >= 60000) {
+      lastStatusMs = millis();
+      sendStatus();
+      Serial.printf("link: heap %u, lowest %u, largest block %u, net stack free %u\n",
+                    (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
+                    (unsigned)ESP.getMaxAllocHeap(), (unsigned)uxTaskGetStackHighWaterMark(nullptr));
+    }
+    vTaskDelay(pdMS_TO_TICKS(2));
   }
 }
 
 namespace svc {
 
 void begin() {
+  inbox = xQueueCreate(1, sizeof(Inbound));
+  outbox = xQueueCreate(8, sizeof(char *));
+  handled = xSemaphoreCreateBinary();
   // Token in the query: the browser emulator cannot set WebSocket headers (§3.1).
   // No subprotocol: the service offers none.
   ws.begin(SERVICE_HOST, SERVICE_PORT, "/ws?device=" DEVICE_ID "&token=" DEVICE_TOKEN, "");
@@ -193,13 +268,20 @@ void begin() {
   ws.setReconnectInterval(BACKOFF_S[0] * 1000UL);
   // Ping every 20 s; three missed pongs (about a minute) and the link is dead.
   ws.enableHeartbeat(20000, 10000, 3);
+  // Core 0 with the Wi-Fi stack; the Arduino loop runs on core 1.
+  xTaskCreatePinnedToCore(netTask, "net", 7168, nullptr, 1, nullptr, 0);
 }
 
 void loop() {
-  ws.loop();
-  if (st.connected && millis() - lastStatusMs >= 60000) {
-    lastStatusMs = millis();
-    sendStatus();
+  Inbound in;
+  if (xQueueReceive(inbox, &in, 0) == pdTRUE) {
+    if (in.binary) onFrame(in.data, in.len);
+    else onText(in.data, in.len);
+    xSemaphoreGive(handled);
+  }
+  if (linkChanged) {
+    linkChanged = false;
+    screen::present();
   }
 }
 
@@ -211,14 +293,14 @@ bool sendButton(int id, const char *press, uint32_t seq, bool local) {
   d["press"] = press;
   d["seq"] = seq;
   if (local) d["local"] = true;
-  return send(d);
+  return post(d);
 }
 
 void overlayClosed(const char *reason) {
   JsonDocument d;
   d["type"] = "overlay_closed";
   d["reason"] = reason;
-  send(d);
+  post(d);
 }
 
 }  // namespace svc

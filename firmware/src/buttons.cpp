@@ -1,22 +1,26 @@
 #include "buttons.h"
 
 #include <Arduino.h>
+#include <esp_timer.h>
 
 #include "link.h"
 #include "screen.h"
 #include "state.h"
 
 // GPIO of buttons 1–8 from the left, each switch to GND, internal pull-ups (§10).
-// No external resistors: 19 is the bus MISO (the chips on it are kept deselected,
-// see screen.cpp), 4 lights the board LED while pressed, 12 is a strap pin but a
-// press only pulls it the safe way.
-static const uint8_t PINS[8] = {12, 4, 19, 33, 32, 25, 22, 21};
+// No external resistors: 0 is BOOT with R8 on the board (held at reset, the board
+// waits for a flash), 19 is the bus MISO (the chips on it are kept deselected,
+// see screen.cpp), 4 lights the board LED while pressed. GPIO12 is not used: on
+// this board it is shorted to the display DC (14), a press there garbled the panel.
+static const uint8_t PINS[8] = {0, 4, 19, 33, 32, 25, 22, 21};
 constexpr uint32_t POLL_MS = 5, DEBOUNCE_MS = 20;
 constexpr uint32_t RESULT_WAIT_MS = 12000;  // no button_result: drop the mark anyway (§4.2)
 constexpr uint32_t OFFLINE_FLASH_MS = 1500;  // service down: flip the tile and back
 
-// The polling task runs while the main loop is stuck in a panel refresh or a frame;
+// Polling runs on a system timer while the main loop is stuck in a panel refresh;
 // edges keep their own time, so the press length is right however late it is handled.
+// A timer, not a task of its own: a task's stack would come out of the heap that
+// must keep one 48 KB block free for a frame.
 struct Edge {
   uint8_t tile;
   bool down;
@@ -40,23 +44,20 @@ static Pending pending[8];
 static uint32_t seq = 0;
 static bool dirty = false;
 
-static void pollTask(void *) {
-  bool raw[8] = {}, state[8] = {};
-  uint32_t since[8] = {};
-  for (;;) {
-    uint32_t now = millis();
-    for (int i = 0; i < 8; i++) {
-      bool down = digitalRead(PINS[i]) == LOW;
-      if (down != raw[i]) {
-        raw[i] = down;
-        since[i] = now;
-      } else if (down != state[i] && now - since[i] >= DEBOUNCE_MS) {
-        state[i] = down;
-        Edge e{(uint8_t)i, down, since[i]};
-        xQueueSend(edges, &e, 0);
-      }
+static void poll(void *) {
+  static bool raw[8], state[8];
+  static uint32_t since[8];
+  uint32_t now = millis();
+  for (int i = 0; i < 8; i++) {
+    bool down = digitalRead(PINS[i]) == LOW;
+    if (down != raw[i]) {
+      raw[i] = down;
+      since[i] = now;
+    } else if (down != state[i] && now - since[i] >= DEBOUNCE_MS) {
+      state[i] = down;
+      Edge e{(uint8_t)i, down, since[i]};
+      xQueueSend(edges, &e, 0);
     }
-    vTaskDelay(pdMS_TO_TICKS(POLL_MS));
   }
 }
 
@@ -96,8 +97,12 @@ namespace buttons {
 void begin() {
   for (uint8_t pin : PINS) pinMode(pin, INPUT_PULLUP);
   edges = xQueueCreate(16, sizeof(Edge));
-  // Above the Arduino loop (priority 1) on its core, so a busy loop does not delay polling.
-  xTaskCreatePinnedToCore(pollTask, "buttons", 2048, nullptr, 2, nullptr, 1);
+  esp_timer_create_args_t args = {};
+  args.callback = poll;
+  args.name = "buttons";
+  esp_timer_handle_t timer;
+  esp_timer_create(&args, &timer);
+  esp_timer_start_periodic(timer, POLL_MS * 1000);
 }
 
 void loop() {
@@ -107,7 +112,9 @@ void loop() {
       Serial.printf("button: GPIO %u down\n", PINS[e.tile]);
       if (held.tile >= 0) continue;  // one at a time
       held = {(int8_t)e.tile, e.ms, false, screen::overlayActive() || screen::diagActive()};
-      dirty = true;
+      // Draw the press now: when the loop was busy, the release is already queued and
+      // would send first, so the tile would flip only together with the service's answer.
+      if (!held.swallow) screen::present();
     } else if (e.tile == held.tile) {
       release(e.tile, e.ms);
     }
