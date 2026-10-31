@@ -19,6 +19,7 @@ static WebSocketsClient ws;
 static const uint16_t BACKOFF_S[] = {1, 2, 4, 8, 16, 30};
 static uint8_t backoffIdx = 0;
 static uint32_t lastStatusMs = 0;
+static volatile bool pauseAsked = false, paused = false;
 
 struct Inbound {
   bool binary;
@@ -73,6 +74,7 @@ static void sendHello() {
   JsonDocument d;
   d["type"] = "hello";
   d["fw"] = FW_VERSION;
+  d["notes"] = FW_NOTES;
   d["device"] = DEVICE_ID;
   if (st.haveBase) d["last_crc"] = st.baseCrc;
   else d["last_crc"] = nullptr;
@@ -243,6 +245,14 @@ static void onEvent(WStype_t type, uint8_t *payload, size_t len) {
 
 static void netTask(void *) {
   for (;;) {
+    if (pauseAsked) {
+      if (!paused) {
+        ws.disconnect();
+        paused = true;
+      }
+      vTaskDelay(pdMS_TO_TICKS(20));
+      continue;
+    }
     ws.loop();
     char *s;
     while (xQueueReceive(outbox, &s, 0) == pdTRUE) {
@@ -275,6 +285,16 @@ void begin() {
   ws.enableHeartbeat(20000, 10000, 3);
   // Core 0 with the Wi-Fi stack; the Arduino loop runs on core 1.
   xTaskCreatePinnedToCore(netTask, "net", 7168, nullptr, 1, nullptr, 0);
+}
+
+void pause() {
+  // Its TCP buffers go back to the heap, and no 48 KB frame comes in during the upload.
+  // A message already on its way still needs the main loop, so keep handling them.
+  pauseAsked = true;
+  for (uint32_t t = millis(); !paused && millis() - t < 2000;) {
+    loop();
+    delay(5);
+  }
 }
 
 void loop() {

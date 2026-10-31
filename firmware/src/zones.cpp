@@ -165,3 +165,9 @@ void drawDiagLine(Canvas &c, int i) {
   c.text(FONT_SEMI16, 40, 18, k);
   c.text(FONT_DATE, 230, 18, v);
 }
+
+void drawNoticeLine(Canvas &c, int i, const char *text) {
+  c.clear();
+  if (i == 0) c.text(FONT_SEMI30, 40, 32, text);
+  else c.text(FONT_DATE, 40, 18, text);
+}

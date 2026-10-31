@@ -28,6 +28,7 @@ REFETCH = ("infomaster", "ical", "weather")
 STICKY_KEY = "messages.sticky"
 STICKY_MAX = 20
 DISMISSED_EVENT = "tablo_message_dismissed"  # a sticky message was closed by a button (§5)
+FW_KEY = "device.fw:"  # + device id: the firmware whose welcome was seen, or the first one met
 
 
 @dataclass
@@ -38,7 +39,8 @@ class Device:
     status: dict = field(default_factory=dict)
     fw: str | None = None
     last_seen: float = field(default_factory=time.time)
-    overlay: str | None = None  # "sticky" or "timed" while the panel shows a full-screen frame from us
+    overlay: str | None = None  # "sticky", "welcome" or "timed" while the panel shows a full-screen frame from us
+    notes: str | None = None  # what its firmware changed, from hello
 
 
 class Hub:
@@ -208,12 +210,14 @@ class Hub:
 
         self._render_task = self._spawn(run())
 
-    async def send_overlay(self, canvas: Canvas, ttl_s: int) -> None:
+    async def send_overlay(self, canvas: Canvas, ttl_s: int, devices: list[Device] | None = None) -> None:
+        """To all panels, or to the ones given."""
         payload = await asyncio.to_thread(_payload, canvas)
         frame = protocol.Frame(protocol.KIND_OVERLAY, max(1, min(ttl_s, 0xFFFF)), self._next_id(), payload)
-        for dev in self.devices.values():
+        data = protocol.encode_frame(frame)
+        for dev in list(self.devices.values()) if devices is None else devices:
             dev.overlay = "timed"
-        await self._broadcast_frame(frame)
+            await self._send(dev, data)
 
     async def show_qr(self, ssids: list[str] | None = None, duration_s: int | None = None) -> None:
         nets = self.cfg.wifi_networks
@@ -276,8 +280,36 @@ class Hub:
             return sent.strftime("%H:%M")
         return f"{sent:%b} {sent.day}, {sent:%H:%M}"
 
+    # --- firmware updates (§5) ---------------------------------------------------
+
+    def _fw_update(self, dev: Device) -> str | None:
+        """The firmware the panel had before, if its number changed and the welcome is not seen yet.
+
+        The new one is kept only when a button closes the welcome, so a restart or a lost link
+        shows it again. The number, not the commit after "+": a rebuild of one version is no news.
+        """
+        if not dev.fw:
+            return None
+        key = FW_KEY + dev.id
+        old = self.store.get_json(key)
+        if old and old.split("+")[0] != dev.fw.split("+")[0]:
+            return old
+        if old != dev.fw:
+            self.store.put_json(key, dev.fw)
+        return None
+
+    async def _show_welcome(self, dev: Device, old: str) -> None:
+        """Before the sticky messages, until a button (ttl 0)."""
+        canvas = await asyncio.to_thread(overlays.welcome, dev.fw, old, dev.notes, self.cfg.display.font_mode)
+        payload = await asyncio.to_thread(_payload, canvas)
+        dev.overlay = "welcome"
+        await self._send(dev, protocol.encode_frame(
+            protocol.Frame(protocol.KIND_OVERLAY, 0, self._next_id(), payload)))
+
     async def _on_overlay_closed(self, dev: Device, reason: str | None) -> None:
         shown, dev.overlay = dev.overlay, None
+        if shown == "welcome" and reason == "button" and dev.fw:
+            self.store.put_json(FW_KEY + dev.id, dev.fw)
         if shown == "sticky":
             if reason != "button":
                 # A panel before fw-0.3 reads ttl 0 as "close now"; showing it again would loop.
@@ -383,6 +415,8 @@ class Hub:
             return
         if kind == "hello":
             dev.fw = msg.get("fw")
+            dev.notes = msg.get("notes") if isinstance(msg.get("notes"), str) else None
+            updated_from = self._fw_update(dev)
             dev.status.update({k: msg[k] for k in ("rssi", "uptime_s") if k in msg})
             self._keep_rssi(dev)
             await self._send(dev, self.config_message())
@@ -390,7 +424,10 @@ class Hub:
             await self._send(dev, self.health_message())
             if msg.get("last_crc") != frame.crc:
                 await self._send(dev, protocol.encode_frame(frame))
-            await self._show_sticky([dev])
+            if updated_from:
+                await self._show_welcome(dev, updated_from)
+            else:
+                await self._show_sticky([dev])
         elif kind == "status":
             dev.status.update({k: v for k, v in msg.items() if k != "type"})
             self._keep_rssi(dev)

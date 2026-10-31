@@ -207,3 +207,36 @@ async def test_clear_messages_takes_the_shown_one_off(client):
     assert (await resp.json()) == {"cleared": 1}
     assert (await _recv(ws)) == {"type": "close_overlay"}
     assert client.app[HUB].sticky == []
+
+
+async def _hello_fw(client, fw, notes=None):
+    ws = await client.ws_connect(WS)
+    await ws.send_json({"type": "hello", "fw": fw, "notes": notes, "last_crc": None})
+    for _ in range(3):  # config, health, base frame
+        await _recv(ws)
+    return ws
+
+
+async def test_new_firmware_number_gets_a_welcome_until_a_button_then_sticky_messages(client):
+    store = client.app[HUB].store
+    await _no_message(await _hello_fw(client, "fw-0.4+aaa"))  # first seen: nothing to compare with
+    await client.post("/api/overlay/message", json={"title": "Urgent", "sticky": True}, headers=AUTH)
+
+    ws = await _hello_fw(client, "fw-0.5+bbb", "Update screen on the panel.")
+    welcome = await _recv(ws)
+    assert welcome.kind == protocol.KIND_OVERLAY and welcome.ttl_s == 0
+    await _no_message(ws)  # the sticky one waits for the welcome
+    assert store.get_json("device.fw:test") == "fw-0.4+aaa"  # not seen yet
+
+    # A reconnect before the button: the welcome again.
+    ws = await _hello_fw(client, "fw-0.5+bbb", "Update screen on the panel.")
+    assert (await _recv(ws)).payload == welcome.payload
+    await ws.send_json({"type": "overlay_closed", "reason": "button"})
+    sticky = await _recv(ws)
+    assert sticky.ttl_s == 0 and sticky.payload != welcome.payload
+    assert store.get_json("device.fw:test") == "fw-0.5+bbb"
+
+    # Same number, another commit: no welcome, the sticky message at once.
+    ws = await _hello_fw(client, "fw-0.5+ccc")
+    assert (await _recv(ws)).payload == sticky.payload
+    assert store.get_json("device.fw:test") == "fw-0.5+ccc"

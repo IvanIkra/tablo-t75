@@ -13,14 +13,41 @@
 // The loop needs about 3 KB; the rest of the default 8 KB is heap for the 48 KB frame block.
 SET_LOOP_TASK_STACK_SIZE(6 * 1024);
 
+static bool otaRunning = false;
+static uint32_t restartAtMs = 0;
+
+static const char *otaError(ota_error_t e) {
+  switch (e) {
+    case OTA_AUTH_ERROR: return "auth";
+    case OTA_BEGIN_ERROR: return "no room for it";
+    case OTA_CONNECT_ERROR: return "no connection to the computer";
+    case OTA_RECEIVE_ERROR: return "upload broke off";
+    case OTA_END_ERROR: return "image check failed";
+    default: return "unknown";
+  }
+}
+
 static void startOta() {
   ArduinoOTA.setHostname("tablo");
   ArduinoOTA.setPassword(OTA_PASSWORD);
   // The default 1 s for each piece broke an upload off (error 3) on a Wi-Fi stall
   // or while a 48 KB frame came in over the WebSocket.
   ArduinoOTA.setTimeout(10000);
-  ArduinoOTA.onStart([] { Serial.println("ota: start"); });
-  ArduinoOTA.onError([](ota_error_t e) { Serial.printf("ota: error %u\n", e); });
+  ArduinoOTA.onStart([] {
+    Serial.println("ota: start");
+    otaRunning = true;
+    svc::pause();
+    screen::showNotice("Updating firmware...", "Now " FW_VERSION, "The panel restarts by itself when it is done");
+  });
+  ArduinoOTA.onError([](ota_error_t e) {
+    Serial.printf("ota: error %u\n", e);
+    if (!otaRunning) return;  // a wrong password: nothing started, nothing to undo
+    char line[64];
+    snprintf(line, sizeof line, "Error: %s. Restarting in 10 s", otaError(e));
+    screen::showNotice("Update failed", line, "Still " FW_VERSION);
+    // The link is stopped and the frames wait: a restart brings everything back.
+    restartAtMs = millis() + 10000;
+  });
   ArduinoOTA.begin();
 }
 
@@ -94,6 +121,7 @@ void loop() {
     screen::present();
   }
   if (otaStarted) ArduinoOTA.handle();
+  if (restartAtMs && (int32_t)(millis() - restartAtMs) >= 0) ESP.restart();
   buttons::loop();
   svc::loop();
   if (millis() - lastTickMs >= 1000) {

@@ -101,3 +101,20 @@ def sticky_message(title: str, text: str, icon: str | None, sent: str, waiting: 
     c.text((MARGIN, foot_y + 28), left, small, anchor="lm")
     c.text((800 - MARGIN, foot_y + 28), "Press any button to close", fonts.inter(20, "semibold"), anchor="rm")
     return c
+
+
+def welcome(version: str, old: str, notes: str | None, font_mode: str = "aliased") -> Canvas:
+    """After a firmware update, until a button: the greeting large, what changed small in the corner."""
+    c = Canvas(font_mode)
+    c.text((400, 170), "Hello!", fonts.inter(72, "semibold"), anchor="mm")
+    c.text((400, 240), f"Tablo is on {version.split('+')[0]}", fonts.inter(28), anchor="mm")
+
+    small = fonts.inter(16)
+    lines = c.wrap(notes or "", small, 440, 3) if notes else []
+    lines.append(f"{old} → {version}")
+    y = 480 - MARGIN - 22 * len(lines)
+    c.text((MARGIN, y - 26), "What's new", fonts.inter(16, "semibold"))
+    for i, line in enumerate(lines):
+        c.text((MARGIN, y + 22 * i), line, small)
+    c.text((800 - MARGIN, 480 - MARGIN - 22), "Press any button", fonts.inter(16, "semibold"), anchor="ra")
+    return c

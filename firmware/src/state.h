@@ -6,7 +6,10 @@
 
 // Raise FW_NUMBER for each change worth naming; the commit is added at build time
 // (tools/fw_version.py), so two builds of one number still differ.
-#define FW_NUMBER "0.4"
+#define FW_NUMBER "0.5"
+// What FW_NUMBER changed, a line or two in English: the service shows it on the panel
+// after an update (§5). Write it together with a new FW_NUMBER.
+#define FW_NOTES "A firmware update now shows on the panel, and a failed one restarts it after 10 s."
 #ifndef FW_COMMIT
 #define FW_COMMIT "nogit"
 #endif

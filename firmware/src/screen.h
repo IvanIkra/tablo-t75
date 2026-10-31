@@ -28,6 +28,9 @@ bool diagActive();
 bool diagExpired();
 void endDiag();
 
+// Until the board restarts: nothing else is drawn, frames from the service wait.
+void showNotice(const char *title, const char *line1, const char *line2);
+
 uint16_t partialsSinceFull();
 
 }  // namespace screen

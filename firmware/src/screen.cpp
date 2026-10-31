@@ -48,7 +48,8 @@ static Canvas clockZone, statusZone;
 // grow aborts, so with the heap short for a moment long press 8 restarted the board.
 static Canvas diagCanvas;
 
-static bool overlay = false, overlayTimed = false, diag = false;
+static bool overlay = false, overlayTimed = false, diag = false, notice = false;
+static char noticeText[NOTICE_LINES][64];
 static uint32_t overlayUntilMs = 0, diagUntilMs = 0;
 static uint16_t partials = 0;
 static bool powered = false;
@@ -220,35 +221,41 @@ static void markRow(uint8_t *row, int y) {
   }
 }
 
-// Line by line: a whole-screen canvas would need another 48 KB block.
-static void presentDiag(bool full) {
+static void drawNotice(Canvas &c, int i) { drawNoticeLine(c, i, noticeText[i]); }
+
+// Diagnostics and notices, line by line: a whole-screen canvas would need another 48 KB block.
+static void presentLines(int lines, void (*draw)(Canvas &, int), bool full) {
   Canvas &line = diagCanvas;
   int li = -1;
   Rect r{0, 0, 0, 0};
   Diff d;
   uint8_t row[ROW];
   for (int y = 0; y < H; y++) {
-    while (li < DIAG_LINES && (li < 0 || y >= r.y + r.h)) {
-      if (++li == DIAG_LINES) break;
+    while (li < lines && (li < 0 || y >= r.y + r.h)) {
+      if (++li == lines) break;
       r = diagLine(li);
       line.resize(r.w, r.h);
-      drawDiagLine(line, li);
+      draw(line, li);
     }
     memset(row, 0, ROW);
-    if (li < DIAG_LINES) blitRow(row, line, r, y);
+    if (li < lines) blitRow(row, line, r, y);
     d.row(y, row);
   }
   d.commit(full);
 }
 
 void present(bool full) {
+  if (notice) {
+    presentLines(NOTICE_LINES, drawNotice, full);
+    return;
+  }
   if (overlay) {
     // Nothing is drawn over a full-screen frame; a full refresh just cleans it.
     if (full) refreshFull(true);
     return;
   }
   if (diag) {
-    presentDiag(full);
+    presentLines(DIAG_LINES, drawDiagLine, full);
     return;
   }
   drawClockZone(clockZone);
@@ -304,6 +311,15 @@ void endOverlay() {
 void showDiag() {
   diag = true;
   diagUntilMs = millis() + cfg.diagTtlS * 1000UL;
+  present();
+}
+
+void showNotice(const char *title, const char *line1, const char *line2) {
+  notice = true;
+  overlay = diag = false;
+  strlcpy(noticeText[0], title, sizeof noticeText[0]);
+  strlcpy(noticeText[1], line1, sizeof noticeText[1]);
+  strlcpy(noticeText[2], line2, sizeof noticeText[2]);
   present();
 }
 
