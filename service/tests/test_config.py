@@ -27,6 +27,13 @@ def test_toggle_needs_entity():
         config.from_dict({"buttons": [{"id": 2, "short": {"action": "toggle"}}]})
 
 
+def test_theme_is_dark_unless_set():
+    assert config.from_dict({}).display.theme == "dark"
+    assert config.from_dict({"display": {"theme": "light"}}).display.theme == "light"
+    with pytest.raises(ConfigError, match="theme"):
+        config.from_dict({"display": {"theme": "sepia"}})
+
+
 def test_unknown_keys_are_rejected():
     with pytest.raises(ConfigError, match="unknown"):
         config.from_dict({"buttons": [{"id": 2, "colour": "red"}]})

@@ -6,10 +6,10 @@
 
 // Raise FW_NUMBER for each change worth naming; the commit is added at build time
 // (tools/fw_version.py), so two builds of one number still differ.
-#define FW_NUMBER "0.5"
+#define FW_NUMBER "0.6"
 // What FW_NUMBER changed, a line or two in English: the service shows it on the panel
 // after an update (§5). Write it together with a new FW_NUMBER.
-#define FW_NOTES "A firmware update now shows on the panel, and a failed one restarts it after 10 s."
+#define FW_NOTES "Dark theme: white on black, switched in Home Assistant."
 #ifndef FW_COMMIT
 #define FW_COMMIT "nogit"
 #endif
@@ -46,6 +46,9 @@ struct Config {
   float bigChange = 0.30f;
   uint16_t offlineAfterS = 120;
   uint16_t diagTtlS = 30;
+  // White on black: frames stay 1 = black, only what goes to the panel is inverted,
+  // so the board's own zones and screens follow without drawing anything else.
+  bool dark = true;
 };
 
 struct Health {

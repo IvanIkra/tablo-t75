@@ -102,9 +102,9 @@ async def test_wifi_home_screen(hass: HomeAssistant, entry, hub):
     result = await _open(hass, entry, "screen")
     result = await hass.config_entries.options.async_configure(result["flow_id"], {
         "semester_start": "2027-01-11", "full_refresh_at": "03:30:00", "font_mode": "threshold",
-        "long_press_ms": 700, "qr_duration_s": 25, "message_duration_s": 40})
+        "theme": "light", "long_press_ms": 700, "qr_duration_s": 25, "message_duration_s": 40})
     assert result["type"] == "create_entry"
     d = hub.cfg.display
-    assert (str(d.semester_start), d.full_refresh_at, d.font_mode, d.long_press_ms) == (
-        "2027-01-11", "03:30", "threshold", 700)
+    assert (str(d.semester_start), d.full_refresh_at, d.font_mode, d.theme, d.long_press_ms) == (
+        "2027-01-11", "03:30", "threshold", "light", 700)
     assert hub.cfg.qr_duration_s == 25

@@ -170,6 +170,11 @@ static void applyConfig(JsonObjectConst c) {
   cfg.offlineAfterS = c["offline_after_s"] | cfg.offlineAfterS;
   cfg.diagTtlS = c["diag_ttl_s"] | cfg.diagTtlS;
   screen::zonesChanged();
+  bool dark = c["theme"].is<const char *>() ? strcmp(c["theme"], "light") != 0 : cfg.dark;
+  if (dark != cfg.dark) {
+    cfg.dark = dark;
+    screen::present(true);  // every pixel flips: a full refresh
+  }
 }
 
 static void onText(const uint8_t *data, size_t len) {

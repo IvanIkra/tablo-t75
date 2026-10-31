@@ -32,6 +32,7 @@ async def _hello(ws, last_crc=None):
     await ws.send_json({"type": "hello", "fw": "test", "last_crc": last_crc})
     config_msg, health, frame = await _recv(ws), await _recv(ws), await _recv(ws)
     assert config_msg["type"] == "config" and health["type"] == "health"
+    assert config_msg["theme"] in ("dark", "light")
     assert isinstance(frame, protocol.Frame) and frame.kind == protocol.KIND_BASE
     return frame
 

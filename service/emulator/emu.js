@@ -24,6 +24,7 @@ const DEFAULT_CONFIG = {
   full_refresh: { at: "04:00", max_partials: 200, big_change: 0.3 },
   offline_after_s: 120,
   diag_ttl_s: 30,
+  theme: "dark",
 };
 
 const st = {
@@ -361,8 +362,10 @@ function present(full = false) {
 
 function paint(override) {
   const paper = opt.paper.checked;
-  const ink = paper ? [34, 34, 32] : [0, 0, 0];
-  const bg = paper ? [226, 224, 216] : [255, 255, 255];
+  let ink = paper ? [34, 34, 32] : [0, 0, 0];
+  let bg = paper ? [226, 224, 216] : [255, 255, 255];
+  // Dark theme: frames stay 1 = black, the panel shows them inverted, as the board does.
+  if (st.cfg.theme === "dark") [ink, bg] = [bg, ink];
   const img = sctx.createImageData(W, H);
   const src = override || st.displayed;
   for (let i = 0; i < W * H; i++) {
@@ -453,7 +456,12 @@ function endDiag() {
 function onMessage(msg) {
   log("←", JSON.stringify(msg));
   switch (msg.type) {
-    case "config": st.cfg = { ...DEFAULT_CONFIG, ...msg, zones: { ...DEFAULT_CONFIG.zones, ...msg.zones } }; break;
+    case "config": {
+      const theme = st.cfg.theme;
+      st.cfg = { ...DEFAULT_CONFIG, ...msg, zones: { ...DEFAULT_CONFIG.zones, ...msg.zones } };
+      if (st.cfg.theme !== theme) { present(true); return; }  // every pixel flips: a full refresh
+      break;
+    }
     case "health": st.health = msg; break;
     case "button_result": {
       for (const [tile, t] of st.pending) {

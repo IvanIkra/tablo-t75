@@ -20,7 +20,7 @@ from .const import (CHANGED_EVENT, CONF_API_TOKEN, CONF_URL, DOMAIN, LOGIN_NOTIF
                     OPT_CONFIG, SOURCES)
 from .coordinator import TabloCoordinator
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.SELECT, Platform.SENSOR]
 
 type TabloConfigEntry = ConfigEntry[TabloCoordinator]
 

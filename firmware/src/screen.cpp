@@ -100,7 +100,8 @@ static int fillBand(int y, int n) {
   return n;
 }
 
-// The driver takes 1 = white; frames are 1 = black, hence invert = true.
+// The driver takes 1 = white; frames are 1 = black, hence invert = true, and false in
+// the dark theme, where the panel shows the frame inverted.
 // clean: the whole screen goes black, then white, then the image. The driver's fast
 // full update alone leaves traces on black areas, but the cycle takes 5 s instead of 2:
 // only for a full refresh asked for (button 8, night, HA, start) and after maxPartials.
@@ -114,7 +115,7 @@ static void refreshFull(bool clean) {
   }
   for (int y = 0; y < H; y += BAND) {
     int n = fillBand(y, min(BAND, H - y));
-    epd.writeImageForFullRefresh((const uint8_t *)band, 0, y, W, n, true);
+    epd.writeImageForFullRefresh((const uint8_t *)band, 0, y, W, n, !cfg.dark);
   }
   epd.refresh(false);
   epd.powerOff();  // writeImageAgain is a no-op in this driver
@@ -128,7 +129,7 @@ static void refreshPart(int x, int y, int w, int h) {
   uint32_t t = millis();
   for (int by = y; by < y + h; by += BAND) {
     int n = fillBand(by, min(BAND, y + h - by));
-    epd.writeImagePart((const uint8_t *)band, x, 0, W, n, x, by, w, n, true);
+    epd.writeImagePart((const uint8_t *)band, x, 0, W, n, x, by, w, n, !cfg.dark);
   }
   epd.refresh(x, y, w, h);  // writeImagePartAgain is a no-op in this driver
   powered = true;

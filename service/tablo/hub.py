@@ -354,6 +354,7 @@ class Hub:
             "full_refresh": {"at": d.full_refresh_at, "max_partials": d.max_partials},
             "offline_after_s": d.offline_after_s,
             "diag_ttl_s": d.diag_ttl_s,
+            "theme": d.theme,
         }
 
     def health_message(self) -> dict:

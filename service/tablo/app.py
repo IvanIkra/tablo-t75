@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 from aiohttp import web
+from PIL import ImageChops
 
 from . import config as config_mod
 from .config import Config, ConfigError
@@ -56,8 +57,11 @@ async def status(request: web.Request) -> web.Response:
 async def frame_png(request: web.Request) -> web.Response:
     hub = _hub(request)
     frame = hub.base or await hub.render_base()
+    image = unpack(frame.payload)
+    if hub.cfg.display.theme == "dark":
+        image = ImageChops.invert(image)  # as the panel shows it: the board inverts the frame
     buf = io.BytesIO()
-    unpack(frame.payload).save(buf, "PNG")
+    image.save(buf, "PNG")
     return web.Response(body=buf.getvalue(), content_type="image/png", headers={"Cache-Control": "no-store"})
 
 

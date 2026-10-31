@@ -132,12 +132,14 @@
           "semester_start": "Semester start",
           "full_refresh_at": "Nightly full refresh",
           "font_mode": "Font rendering",
+          "theme": "Theme",
           "long_press_ms": "Long press after",
           "qr_duration_s": "Wi-Fi QR stays",
           "message_duration_s": "A message stays"
         },
         "data_description": {
-          "semester_start": "Week numbers count from it."
+          "semester_start": "Week numbers count from it.",
+          "theme": "Dark: white on black. The whole panel flips with a full refresh."
         }
       }
     },
@@ -169,6 +171,12 @@
         "threshold": "Smoothed, then cut"
       }
     },
+    "theme": {
+      "options": {
+        "dark": "Dark",
+        "light": "Light"
+      }
+    },
     "source": {
       "options": {
         "infomaster": "infomaster (deadlines, news, grades)",
@@ -181,6 +189,15 @@
     "binary_sensor": {
       "connected": {
         "name": "Connected"
+      }
+    },
+    "select": {
+      "theme": {
+        "name": "Theme",
+        "state": {
+          "dark": "Dark",
+          "light": "Light"
+        }
       }
     },
     "sensor": {

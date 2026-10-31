@@ -22,6 +22,8 @@ PRESSES = ("short", "long")
 ACTIONS = ("toggle", "script", "qr", "message", "event", "none")
 RUN_DOMAINS = ("script", "scene", "automation", "button", "input_button")
 SOURCES = ("infomaster", "ical", "weather")
+THEMES = ("dark", "light")  # dark: the panel shows everything white on black
+DEFAULT_THEME = "dark"  # the service's default when the config has none
 # Source settings that moved to infomaster's Mini App: an entry saved before still has them, the service refuses them.
 OLD_CONFIG_KEYS = ("grades", "hseapp", "news", "mail", "subjects")
 

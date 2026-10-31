@@ -32,8 +32,8 @@ from homeassistant.helpers.template import Template
 
 from . import forms
 from .api import TabloApi, TabloAuthError, TabloError
-from .const import (ACTIONS, CONF_API_TOKEN, CONF_URL, CONFIGURABLE_BUTTONS, DEFAULT_URL, DOMAIN, OPT_BOT, OPT_CONFIG,
-                    RUN_DOMAINS)
+from .const import (ACTIONS, CONF_API_TOKEN, CONF_URL, CONFIGURABLE_BUTTONS, DEFAULT_THEME, DEFAULT_URL, DOMAIN, OPT_BOT,
+                    OPT_CONFIG, RUN_DOMAINS, THEMES)
 
 # Shown and saved when the icon field is left empty and the entity has no icon of its own (§8.2).
 DOMAIN_ICONS = {
@@ -366,6 +366,7 @@ class TabloOptionsFlow(OptionsFlow):
             vol.Required("semester_start"): DateSelector(),
             vol.Required("full_refresh_at"): TimeSelector(),
             vol.Required("font_mode"): _select(["aliased", "threshold"], "font_mode"),
+            vol.Required("theme"): _select(list(THEMES), "theme"),
             vol.Required("long_press_ms"): _number(300, 3000, "ms", 50),
             vol.Required("qr_duration_s"): _number(5, 600, "s"),
             vol.Required("message_duration_s"): _number(5, 600, "s"),
@@ -376,6 +377,7 @@ class TabloOptionsFlow(OptionsFlow):
                 display["semester_start"] = data["semester_start"]
                 display.setdefault("full_refresh", {})["at"] = data["full_refresh_at"][:5]
                 display["font_mode"] = data["font_mode"]
+                display["theme"] = data["theme"]
                 display["long_press_ms"] = int(data["long_press_ms"])
                 overlays = self.cfg.setdefault("overlays", {})
                 overlays["qr_duration_s"] = int(data["qr_duration_s"])
@@ -387,6 +389,7 @@ class TabloOptionsFlow(OptionsFlow):
             "semester_start": display.get("semester_start", "2026-09-01"),
             "full_refresh_at": display.get("full_refresh", {}).get("at", "04:00") + ":00",
             "font_mode": display.get("font_mode", "aliased"),
+            "theme": display.get("theme", DEFAULT_THEME),
             "long_press_ms": display.get("long_press_ms", 600),
             "qr_duration_s": overlays.get("qr_duration_s", 20),
             "message_duration_s": overlays.get("message_duration_s", 30),

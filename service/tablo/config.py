@@ -79,6 +79,7 @@ class Display:
     offline_after_s: int = 120
     diag_ttl_s: int = 30
     font_mode: str = "aliased"  # "aliased" (FreeType mono) or "threshold" (grey + cut)
+    theme: str = "dark"  # "dark": the board shows every frame and its own zones inverted, white on black
 
 
 @dataclass
@@ -224,6 +225,8 @@ def from_dict(data: dict) -> Config:
     cfg.display = Display(**_known(Display, display, "display"))
     if cfg.display.font_mode not in ("aliased", "threshold"):
         raise ConfigError("display.font_mode must be 'aliased' or 'threshold'")
+    if cfg.display.theme not in ("light", "dark"):
+        raise ConfigError("display.theme must be 'light' or 'dark'")
 
     overlays = data.pop("overlays", {}) or {}
     cfg.qr_duration_s = int(overlays.get("qr_duration_s", cfg.qr_duration_s))

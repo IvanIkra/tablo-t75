@@ -56,6 +56,16 @@ async def test_entities_follow_the_panel(hass: HomeAssistant, entry, service):
     await client.close()
 
 
+async def test_theme_select_pushes_the_config(hass: HomeAssistant, entry, hub):
+    assert hass.states.get("select.tablo_theme").state == "dark"
+    await hass.services.async_call("select", "select_option", {"entity_id": "select.tablo_theme", "option": "light"},
+                                   blocking=True)
+    await hass.async_block_till_done()
+    assert hub.cfg.display.theme == "light"
+    assert entry.options[OPT_CONFIG]["display"]["theme"] == "light"
+    assert hass.states.get("select.tablo_theme").state == "light"
+
+
 async def test_no_todo_lists_or_llm_sensors(hass: HomeAssistant, entry):
     assert not hass.states.async_entity_ids("todo")
     assert not [e for e in hass.states.async_entity_ids("sensor") if "llm" in e]

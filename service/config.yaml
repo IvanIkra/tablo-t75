@@ -50,6 +50,7 @@ display:
   offline_after_s: 120
   diag_ttl_s: 30
   font_mode: aliased
+  theme: dark  # or light; the board inverts the whole picture
 
 overlays:
   qr_duration_s: 20
