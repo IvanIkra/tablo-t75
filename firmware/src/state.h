@@ -6,10 +6,10 @@
 
 // Raise FW_NUMBER for each change worth naming; the commit is added at build time
 // (tools/fw_version.py), so two builds of one number still differ.
-#define FW_NUMBER "0.8"
+#define FW_NUMBER "0.9"
 // What FW_NUMBER changed, a line or two in English: the service shows it on the panel
 // after an update (§5). Write it together with a new FW_NUMBER.
-#define FW_NOTES "Wi-Fi comes back by itself on a weak signal; diagnostics count the drops."
+#define FW_NOTES "A second press before the answer flips the tile back at once."
 #ifndef FW_COMMIT
 #define FW_COMMIT "nogit"
 #endif

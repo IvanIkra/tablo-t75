@@ -36,8 +36,11 @@ struct Held {
 };
 static Held held;
 
+// A press waiting for the service. Each press before the answer flips the tile once
+// more, and each new base frame that changes the tile takes one flip back (§4.2).
 struct Pending {
   bool on = false;
+  uint8_t flips = 0;
   uint32_t seq, untilMs;
 };
 static Pending pending[8];
@@ -87,6 +90,7 @@ static void release(uint8_t tile, uint32_t ms) {
   }
   dirty = true;
   Pending &p = pending[tile];
+  p.flips = p.on ? p.flips + 1 : 1;
   p.on = true;
   p.seq = ++seq;
   p.untilMs = millis() + (svc::sendButton(id, press, p.seq, false) ? RESULT_WAIT_MS : OFFLINE_FLASH_MS);
@@ -147,19 +151,21 @@ void result(uint32_t s) {
 
 void settled(uint8_t tileMask) {
   for (int i = 0; i < 8; i++) {
-    if (pending[i].on && (tileMask & 1 << i)) {
-      pending[i].on = false;
+    Pending &p = pending[i];
+    if (p.on && (tileMask & 1 << i)) {
+      if (--p.flips == 0) p.on = false;
       dirty = true;
     }
   }
 }
 
 Mark mark(int tile) {
+  bool flipped = pending[tile].on && pending[tile].flips % 2;
   if (held.tile == tile && !held.swallow) {
     if (held.armed) return FRAMED;
-    return INVERTED;
+    return flipped ? NONE : INVERTED;
   }
-  return pending[tile].on ? INVERTED : NONE;
+  return flipped ? INVERTED : NONE;
 }
 
 }  // namespace buttons

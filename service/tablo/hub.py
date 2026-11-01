@@ -71,6 +71,7 @@ class Hub:
         self._frame_id = 0
         self._render_lock = asyncio.Lock()
         self._render_task: asyncio.Task | None = None
+        self._toggle_locks: dict[str, asyncio.Lock] = {}  # by entity: a second press waits for the first (§4.2)
         self._tasks: set[asyncio.Task] = set()
         for h in (ha, real_ha):
             if h is not None:
@@ -502,7 +503,9 @@ class Hub:
             raise RuntimeError("Home Assistant is not connected")
         match action.action:
             case "toggle":
-                await asyncio.wait_for(ha.toggle(action.entity), ACTION_TIMEOUT_S)
+                # Two toggles in flight would read the same old state and undo each other.
+                async with self._toggle_locks.setdefault(action.entity, asyncio.Lock()):
+                    await asyncio.wait_for(ha.toggle(action.entity), ACTION_TIMEOUT_S)
             case "script":
                 await asyncio.wait_for(ha.run_script(action.entity), ACTION_TIMEOUT_S)
             case "qr":

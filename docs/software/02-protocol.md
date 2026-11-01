@@ -81,6 +81,7 @@
 3. Success → the service sends a new base frame with the real tile state, then `button_result ok`.
 4. On `button_result` (or after 12 s with no answer) the board removes the local mark and redraws the tile from the base frame. If the command failed, the tile goes back to how it was.
 5. Service unreachable → the board inverts the tile and turns it back after 1.5 s: you can see the press did not go through.
+6. A second press before the answer flips the tile back at once, a third flips it again, and so on. Each new base frame that changes the tile takes one flip back, so the tile keeps showing the state the presses ask for; `button_result` for the last press removes the mark. The service runs toggles of one entity one after another, so two quick presses turn it on and off again instead of racing on the same old state.
 
 ---
 

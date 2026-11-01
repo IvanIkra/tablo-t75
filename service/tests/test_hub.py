@@ -68,6 +68,21 @@ async def test_toggle_sends_new_frame_then_result(client):
     assert ("tablo_button", {"button": 4, "press": "short"}) in ha.events
 
 
+async def test_second_toggle_before_the_answer_runs_after_the_first(client):
+    ha = client.app[HUB].ha
+    ws = await client.ws_connect(WS)
+    await _hello(ws)
+    await ws.send_json({"type": "button", "id": 4, "press": "short", "seq": 1})
+    await ws.send_json({"type": "button", "id": 4, "press": "short", "seq": 2})
+    results = []
+    while len(results) < 2:
+        msg = await _recv(ws)
+        if isinstance(msg, dict) and msg["type"] == "button_result":
+            results.append(msg)
+    assert [r["seq"] for r in results] == [1, 2] and all(r["ok"] for r in results)
+    assert ha.state("light.desk_light") == "off"
+
+
 async def test_long_press_qr_sends_overlay(client):
     ws = await client.ws_connect(WS)
     await _hello(ws)
