@@ -7,11 +7,11 @@ Demo data for the blocks (`tablo/stub.py`) is switched on with toggles in the em
 ## Running
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+uv sync    # .venv on Python 3.12 from .python-version, exact versions from uv.lock
 ```
 
 ```bash
-.venv/bin/python -m tablo --config config.yaml
+uv run python -m tablo --config config.yaml
 ```
 
 The emulator: <http://localhost:8765/emu>. Buttons work with the mouse or keys 1–8, holding ≥ 600 ms is a long press. The board token can be passed in the address: `/emu?token=…`.
@@ -19,7 +19,7 @@ The emulator: <http://localhost:8765/emu>. Buttons work with the mouse or keys 1
 Tests:
 
 ```bash
-.venv/bin/python -m pytest -q
+uv run pytest -q
 ```
 
 ## Sources

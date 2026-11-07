@@ -157,8 +157,8 @@ No hardware needed: the service ships with a board emulator and a fake home.
 
 ```bash
 cd service
-python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/python -m tablo --config config.yaml
+uv sync
+uv run python -m tablo --config config.yaml
 ```
 
 Open <http://localhost:8765/emu>. Keys 1–8 on the keyboard press the buttons;

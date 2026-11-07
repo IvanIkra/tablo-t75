@@ -1,5 +1,7 @@
 *
 !pyproject.toml
+!uv.lock
+!.python-version
 !config.yaml
 !assets
 !emulator

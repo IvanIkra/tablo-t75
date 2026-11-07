@@ -1,6 +1,21 @@
-# Tests of the HA integration against the real service (§8):
-#   python3.14 -m venv .venv && .venv/bin/pip install homeassistant==2026.4.4 pytest-homeassistant-custom-component -e ../service
-#   .venv/bin/pytest
+# Tests of the HA integration against the real service (§8): `uv sync`, then `uv run pytest`.
+# The integration itself has no Python dependencies of its own: it runs inside Home Assistant.
+[project]
+name = "tablo-ha-integration"
+version = "0.1.0"
+requires-python = ">=3.14.2"  # Home Assistant 2026.4 needs Python 3.14.2+
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "homeassistant==2026.4.4",
+    "pytest-homeassistant-custom-component==0.13.325",
+    "tablo-service",
+]
+
+[tool.uv.sources]
+tablo-service = { path = "../service", editable = true }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

@@ -28,9 +28,9 @@ The service needs its own long-lived HA token (`TABLO_HA_TOKEN`) from an adminis
 The tests start a real service with a fake home and run the integration in a test HA.
 
 ```bash
-python3.14 -m venv .venv && .venv/bin/pip install homeassistant==2026.4.4 pytest-homeassistant-custom-component -e ../service
+uv sync    # Python 3.14, Home Assistant and the service from ../service, versions from uv.lock
 ```
 
 ```bash
-.venv/bin/pytest
+uv run pytest
 ```
