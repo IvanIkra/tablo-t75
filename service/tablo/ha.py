@@ -1,14 +1,15 @@
 """Home Assistant access (§7.6, §8.1).
 
 `HomeAssistant` is the real client: one WebSocket, `subscribe_entities` for
-states, `render_template` for the Home rows (§8.3), `call_service` for buttons,
-`fire_event` for `tablo_button`. `FakeHA` is an in-memory house with the same
+states, `render_template` for the Home rows (§8.3), `script/config` for how long a
+running script lasts, `call_service` for buttons, `fire_event` for `tablo_button`. `FakeHA` is an in-memory house with the same
 methods, for the emulator and tests. States and template results survive a lost
 connection: the screen shows the last known ones (§11).
 """
 
 import asyncio
 import contextlib
+import datetime as dt
 import logging
 import math
 from collections.abc import Callable
@@ -43,6 +44,62 @@ RETRY_S = (1, 2, 5, 10, 30, 60)
 AUTH_RETRY_S = 300  # a bad token stays bad; do not hammer HA's login ban
 
 
+# Steps that keep a script running; "delay" is the only one whose length can be known in advance.
+WAIT_STEPS = ("delay", "wait_template", "wait_for_trigger")
+
+
+def _delay_s(value) -> float | None:
+    """A fixed `delay` in seconds: "HH:MM", "HH:MM:SS", seconds, or {hours: …, minutes: …}; None for a template."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        units = {"days": 86400, "hours": 3600, "minutes": 60, "seconds": 1, "milliseconds": 0.001}
+        if not set(value) <= set(units):
+            return None
+        parts = [_delay_s(v) for v in value.values()]
+        if None in parts:
+            return None
+        return sum(units[k] * part for k, part in zip(value, parts, strict=True))
+    if isinstance(value, str) and "{" not in value:
+        try:
+            parts = [float(p) for p in value.strip().split(":")]
+        except ValueError:
+            return None
+        if len(parts) == 1:
+            return parts[0]
+        if len(parts) in (2, 3):  # as HA reads it: "HH:MM" or "HH:MM:SS"
+            return sum(p * f for p, f in zip(parts, (3600, 60, 1), strict=False))
+    return None
+
+
+def _waits(value) -> bool:
+    if isinstance(value, dict):
+        return any(k in WAIT_STEPS for k in value) or any(_waits(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_waits(v) for v in value)
+    return False
+
+
+def script_length(sequence) -> float:
+    """How long a script runs, from its `sequence` (§8.3): 0 when it never waits (done in a moment), the sum
+    of its delays when they are all fixed and at the top level, inf when it waits for something it cannot
+    know in advance: a template delay, a trigger, a delay inside a choose or a repeat."""
+    if sequence is None:
+        return math.inf  # e.g. a script from a blueprint: no sequence in its config
+    total = 0.0
+    for step in sequence if isinstance(sequence, list) else [sequence]:
+        if isinstance(step, dict) and "delay" in step:
+            seconds = _delay_s(step["delay"])
+            if seconds is None:
+                return math.inf
+            total += seconds
+        elif _waits(step):
+            return math.inf
+    return total
+
+
 class HAError(RuntimeError):
     pass
 
@@ -74,6 +131,7 @@ class HomeAssistant:
         self.templates: dict[str, str | None] = {}  # template -> last result; None = error or not rendered yet
         self._wanted: list[str] = []
         self._template_ids: dict[int, str] = {}  # subscription id -> template, on the current connection
+        self.script_lengths: dict[str, float] = {}  # script -> seconds (see script_length), asked when it starts
         self._tasks: set[asyncio.Task] = set()
 
     # --- reading ----------------------------------------------------------------
@@ -92,6 +150,24 @@ class HomeAssistant:
 
     def template(self, template: str) -> str | None:
         return self.templates.get(template)
+
+    def script_length(self, entity: str) -> float | None:
+        """None until HA has told how the script is made (asked each time it starts)."""
+        return self.script_lengths.get(entity)
+
+    async def _ask_script(self, entity: str) -> None:
+        try:
+            result = await self._command({"type": "script/config", "entity_id": entity})
+            config = (result or {}).get("config") or {}
+            length = script_length(config.get("sequence"))
+        except (HAError, asyncio.TimeoutError) as e:
+            log.warning("script %s: no config (%s); shown without the time left", entity, e)
+            length = math.inf
+        old = self.script_lengths.get(entity)
+        self.script_lengths[entity] = length
+        if old != length:
+            for listener in self._listeners:
+                listener(f"script:{entity}", None, None)
 
     def set_templates(self, templates: list[str]) -> None:
         """Keep these templates rendered by HA: subscribe to new ones, drop the rest."""
@@ -308,6 +384,11 @@ class HomeAssistant:
         for future in self._waiters.get(entity, ()):
             if not future.done():
                 future.set_result(new)
+        if entity.startswith("script.") and new == "on" and self.connected:
+            # Its config may have changed since the last run: ask every time.
+            task = asyncio.get_running_loop().create_task(self._ask_script(entity))
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
         for listener in self._listeners:
             listener(entity, old, new)
 
@@ -341,8 +422,14 @@ class FakeHA:
             "sensor.printer_current_print_state": "printing",
             "sensor.printer_progress": "42",
             "sensor.printer_print_time_left": "1.33",
+            "script.closet_5min": "off",
         }
-        self.attrs: dict[str, dict] = {"sensor.printer_print_time_left": {"unit_of_measurement": "h"}}
+        self.attrs: dict[str, dict] = {
+            "sensor.printer_print_time_left": {"unit_of_measurement": "h"},
+            "script.closet_5min": {"friendly_name": "Tablo · Closet for 5 min"},
+        }
+        self.script_lengths: dict[str, float] = {"script.closet_5min": 300.0}
+        self._script_tasks: dict[str, asyncio.Task] = {}
         self._listeners: list[StateListener] = []
         self.events: list[tuple[str, dict]] = []
         self._jinja = _fake_jinja(self)
@@ -358,6 +445,9 @@ class FakeHA:
 
     def attribute(self, entity: str, name: str):
         return self.attrs.get(entity, {}).get(name)
+
+    def script_length(self, entity: str) -> float | None:
+        return self.script_lengths.get(entity, 0.0 if entity in self.states else None)
 
     def set_templates(self, templates: list[str]) -> None:
         pass  # rendered on demand from the current states
@@ -387,8 +477,32 @@ class FakeHA:
                 self._set(light, "off")
             if entity == "script.leaving_home":
                 self._set("switch.vpn_ap", "off")
+        elif entity == "script.closet_5min":
+            self._set("light.closet_light", "on")
+            self.start_script(entity)
         else:
             log.info("fake HA: script %s has no effect here", entity)
+
+    def start_script(self, entity: str, at: dt.datetime | None = None) -> None:
+        """Run a script with a known length, like HA in "restart" mode: a second start begins it again."""
+        at = at or dt.datetime.now(dt.UTC)
+        self.attrs.setdefault(entity, {})["last_triggered"] = at.isoformat()
+        old = self._script_tasks.pop(entity, None)
+        if old:
+            old.cancel()
+        with contextlib.suppress(RuntimeError):  # no event loop (tests): stays on until stopped by hand
+            self._script_tasks[entity] = asyncio.get_running_loop().create_task(self._finish_script(entity))
+        if self.states.get(entity) == "on":
+            for listener in self._listeners:
+                listener(entity, "on", "on")  # restarted: the time left changes
+        self._set(entity, "on")
+
+    async def _finish_script(self, entity: str) -> None:
+        await asyncio.sleep(self.script_lengths.get(entity, 0.0))
+        self._script_tasks.pop(entity, None)
+        if entity == "script.closet_5min":
+            self._set("light.closet_light", "off")
+        self._set(entity, "off")
 
     async def fire_event(self, event_type: str, data: dict) -> None:
         self.events.append((event_type, data))

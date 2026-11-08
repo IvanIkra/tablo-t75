@@ -67,6 +67,7 @@ class HomeRow:
 @dataclass(frozen=True)
 class Home:
     rows: tuple[HomeRow, ...] = ()  # only rows whose template gave something
+    scripts: tuple[HomeRow, ...] = ()  # running scripts that wait (§8.3): name, time left; above the rows
 
 
 @dataclass(frozen=True)

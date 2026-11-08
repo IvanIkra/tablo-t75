@@ -1,13 +1,15 @@
 """Home Assistant WebSocket client against a fake HA, and the Home block built from its states."""
 
 import asyncio
+import datetime as dt
+import math
 from pathlib import Path
 
 import pytest
 from aiohttp import WSMsgType, web
 
 from tablo import builder, config
-from tablo.ha import FakeHA, HAError, HomeAssistant
+from tablo.ha import FakeHA, HAError, HomeAssistant, script_length
 
 TOKEN = "good-token"
 CFG = config.load(Path(__file__).resolve().parents[1] / "config.yaml", local=False)
@@ -22,7 +24,9 @@ class FakeServer:
             "light.lamp": {"s": "off", "a": {"friendly_name": "Lamp"}},
             "light.dead": {"s": "unavailable", "a": {}},
             "sensor.t": {"s": "21.5", "a": {"unit_of_measurement": "°C"}},
+            "script.closet": {"s": "off", "a": {"friendly_name": "Closet"}},
         }
+        self.scripts = {"script.closet": {"sequence": [{"action": "light.turn_on"}, {"delay": "00:05:00"}]}}
         self.calls: list[dict] = []
         self.sockets: list[web.WebSocketResponse] = []
         self.sub_id = None
@@ -58,6 +62,10 @@ class FakeServer:
                 await ws.send_json({"id": m["id"], "type": "result", "success": True, "result": None})
                 await ws.send_json({"id": m["id"], "type": "event",
                                     "event": {"result": self.results.get(m["template"], ""), "listeners": {}}})
+            elif m["type"] == "script/config":
+                self.calls.append(m)
+                await ws.send_json({"id": m["id"], "type": "result", "success": True,
+                                    "result": {"config": self.scripts[m["entity_id"]]}})
             elif m["type"] == "unsubscribe_events":
                 self.template_subs.pop(m["subscription"], None)
                 await ws.send_json({"id": m["id"], "type": "result", "success": True, "result": None})
@@ -155,6 +163,18 @@ async def test_scripts_scenes_and_events(ha_pair):
         await ha.run_script("light.lamp")
     with pytest.raises(HAError, match="no such service"):
         await ha.call_service("bogus", "x")
+
+
+async def test_a_started_script_is_asked_how_long_it_runs(ha_pair):
+    fake, ha = ha_pair
+    seen = []
+    ha.add_listener(lambda e, old, new: seen.append(e))
+    assert ha.script_length("script.closet") is None
+    await fake.change("script.closet", "on")
+    await _until(lambda: ha.script_length("script.closet") == 300)
+    assert {"type": "script/config", "entity_id": "script.closet"} in [
+        {k: v for k, v in c.items() if k != "id"} for c in fake.calls]
+    assert "script:script.closet" in seen  # the screen is drawn again with the time left
 
 
 async def test_lost_connection_keeps_states_and_reconnects(ha_pair):
@@ -266,3 +286,46 @@ def test_old_home_settings_become_the_same_rows():
 def test_bad_home_rows_are_refused(home, error):
     with pytest.raises(config.ConfigError, match=error):
         config.from_dict({"home": home})
+
+
+@pytest.mark.parametrize(("sequence", "seconds"), [
+    ([{"action": "light.turn_on"}], 0),
+    ({"action": "light.turn_on"}, 0),
+    ([{"delay": "00:05:00"}, {"action": "light.turn_off"}], 300),
+    ([{"delay": "01:30"}], 5400),  # HA reads two parts as hours and minutes
+    ([{"delay": 90}, {"delay": "45"}], 135),
+    ([{"delay": {"minutes": 2, "seconds": 30}}], 150),
+    ([{"delay": "{{ states('input_number.minutes') | int }}:00"}], math.inf),
+    ([{"delay": {"minutes": "{{ 5 }}"}}], math.inf),
+    ([{"wait_for_trigger": [{"trigger": "state"}]}], math.inf),
+    ([{"choose": [{"sequence": [{"delay": 10}]}]}], math.inf),
+    (None, math.inf),  # no sequence: a blueprint script
+])
+def test_script_length(sequence, seconds):
+    assert script_length(sequence) == seconds
+
+
+NOW = dt.datetime(2026, 11, 9, 12, 0)  # local time, as the builder gets it
+UTC_NOW = NOW.replace(tzinfo=dt.timezone(dt.timedelta(hours=3))).astimezone(dt.UTC)  # Europe/Moscow
+
+
+def test_home_block_shows_running_scripts_with_the_time_left():
+    ha = FakeHA()
+    assert builder.home(ha, CFG, NOW).scripts == ()
+    ha.start_script("script.closet_5min", at=UTC_NOW - dt.timedelta(seconds=90))
+    home = builder.home(ha, CFG, NOW)
+    assert [(r.label, r.value) for r in home.scripts] == [("Closet for 5 min", "4 min left")]
+    assert builder.home(ha, CFG, NOW + dt.timedelta(minutes=3, seconds=29)).scripts[0].value == "1 min left"
+    assert builder.home(ha, CFG, NOW + dt.timedelta(minutes=4)).scripts[0].value == "running"  # off any moment
+
+    ha.script_lengths["script.closet_5min"] = 2 * 3600
+    assert builder.home(ha, CFG, NOW).scripts[0].value == "1:59 left"
+    ha.script_lengths["script.closet_5min"] = math.inf  # waits for a trigger
+    assert builder.home(ha, CFG, NOW).scripts[0].value == "running"
+
+    ha.states["script.quick"] = "on"  # no waits: on for a moment, never a row
+    ha.states["script.new"] = "on"
+    ha.script_lengths["script.new"] = None  # HA not asked yet
+    assert [r.label for r in builder.home(ha, CFG, NOW).scripts] == ["Closet for 5 min"]
+    ha.states["script.closet_5min"] = "off"
+    assert builder.home(ha, CFG, NOW).scripts == ()

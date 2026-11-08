@@ -152,3 +152,13 @@ def test_all_demo_off_renders_empty_blocks():
     assert model.weather is None and not model.news and model.home is None
     assert not any(t.on for t in model.tiles) and model.tiles[1].icon == "mdi:ceiling-light"
     assert screen.render(model).to_bw().size == (800, 480)
+
+
+def test_running_script_takes_the_first_home_row():
+    ha = FakeHA()
+    x, _, w, _ = screen.HOME
+    last = (x + 8, screen._row_y(screen.HOME, 3), w - 16, screen.ROW_H)  # under the three default rows
+    before = screen.render(builder.build(NOW, CFG, ha)).to_bw()
+    ha.start_script("script.closet_5min")
+    after = screen.render(builder.build(NOW, CFG, ha)).to_bw()
+    assert _black(before, last) == 0 < _black(after, last)  # the rows moved down by one

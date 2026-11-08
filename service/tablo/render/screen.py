@@ -260,12 +260,15 @@ def _home(c: Canvas, m: ScreenModel) -> None:
     if not h:
         _row(c, HOME, 0, "no Home Assistant")
         return
-    if not h.rows:
+    if not h.rows and not h.scripts:
         _row(c, HOME, 0, "—")
         return
     x, _, w, _ = HOME
     bold = fonts.inter(16, "semibold")
-    for i, row in enumerate(h.rows[:_rows(HOME)]):
+    # A running script comes first and keeps its time left whole; a long name is cut instead.
+    for i, script in enumerate(h.scripts[:_rows(HOME)]):
+        _row(c, HOME, i, script.label, script.value, right_font=bold)
+    for i, row in enumerate(h.rows[:max(0, _rows(HOME) - len(h.scripts))], start=len(h.scripts)):
         if row.label:
             # The value keeps at least the label's width; a long one is cut with "…".
             room = w - 2 * PAD - c.width(row.label, fonts.inter(16, BODY)) - 8
