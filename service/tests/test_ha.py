@@ -244,12 +244,16 @@ def _printer_ha(state, progress="42", left="1.33", unit="h"):
     ("printing", "min", "42% · 0:01"),
     ("printing", "s", "42% · 0:00"),
     ("printing", None, None),  # unknown unit: template error, no row
-    ("paused", "h", ""),  # only while printing
-    ("standby", "h", ""),
+    ("paused", "h", "paused · 42%"),
+    ("standby", "h", "idle"),
+    ("cancelled", "h", "idle"),
+    ("complete", "h", "done"),
+    ("error", "h", "error"),
+    ("unavailable", "h", "off"),  # the Klipper host or the printer is off
 ])
 def test_default_printer_row(state, unit, expected):
     printer = CFG.home.rows[2]
-    assert printer.label == "printing"
+    assert printer.label == "printer"
     assert _printer_ha(state, unit=unit).template(printer.template) == expected
 
 
@@ -257,10 +261,10 @@ def test_home_block_shows_rows_that_gave_something():
     ha = _printer_ha("printing")
     home = builder.home(ha, CFG)
     assert [(r.label, r.value) for r in home.rows] == [("", "22.4° · 45%"), ("lights", "3 of 5"),
-                                                      ("printing", "42% · 1:20")]
+                                                      ("printer", "42% · 1:20")]
     ha.states["sensor.printer_current_print_state"] = "standby"
     ha.states["sensor.room_sensor_temperature"] = "unavailable"
-    assert [r.label for r in builder.home(ha, CFG).rows] == ["lights"]
+    assert [(r.label, r.value) for r in builder.home(ha, CFG).rows] == [("lights", "3 of 5"), ("printer", "idle")]
     ha.ready = False
     assert builder.home(ha, CFG) is None
 

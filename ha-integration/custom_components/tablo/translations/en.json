@@ -118,7 +118,7 @@
       },
       "home": {
         "title": "Home block",
-        "description": "Up to 5 rows, one per line: `label | template`. Home Assistant renders each template and the panel follows its changes; an empty result hides the row (e.g. printing only while printing). Without a label (`| template`) the value starts at the left edge.",
+        "description": "Up to 5 rows, one per line: `label | template`. Home Assistant renders each template and the panel follows its changes; an empty result hides the row (e.g. a row inside `{% if %}` shows only while its condition holds). Without a label (`| template`) the value starts at the left edge.",
         "data": {
           "rows": "Rows"
         },

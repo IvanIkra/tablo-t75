@@ -129,9 +129,13 @@ LEGACY_HOME_KEYS = {"temperature", "humidity", "lights", "printer"}
 CLIMATE_TEMPLATE = "{{ states('$T') | round(1) }}° · {{ states('$H') | round(0) | int }}%"
 LIGHTS_TEMPLATE = "{{ $LIST | select('is_state', 'on') | list | count }} of $N"
 PRINTER_TEMPLATE = (
-    "{% if is_state('$S', 'printing') %}{{ states('$P') | round(0) | int }}% · "
+    "{% set s = states('$S') %}"
+    "{% if s == 'printing' %}{{ states('$P') | round(0) | int }}% · "
     "{% set unit = {'s': 1 / 60, 'min': 1, 'h': 60, 'd': 1440}[state_attr('$L', 'unit_of_measurement')] %}"
-    "{% set m = (states('$L') | float(0) * unit) | round(0) | int %}{{ m // 60 }}:{{ '%02d' % (m % 60) }}{% endif %}"
+    "{% set m = (states('$L') | float(0) * unit) | round(0) | int %}{{ m // 60 }}:{{ '%02d' % (m % 60) }}"
+    "{% elif s == 'paused' %}paused · {{ states('$P') | round(0) | int }}%"
+    "{% elif s in ['standby', 'cancelled'] %}idle{% elif s == 'complete' %}done"
+    "{% elif s in ['unavailable', 'unknown'] %}off{% else %}{{ s }}{% endif %}"
 )
 
 
@@ -155,7 +159,7 @@ def legacy_home_rows(home: dict) -> list[HomeRow]:
         rows.append(HomeRow("lights", _fill(LIGHTS_TEMPLATE, LIST=repr(lights), N=str(len(lights)))))
     printer = dict(home.get("printer") or {})
     if printer.get("state") and printer.get("progress") and printer.get("time_left"):
-        rows.append(HomeRow("printing", _fill(PRINTER_TEMPLATE, S=printer["state"], P=printer["progress"],
+        rows.append(HomeRow("printer", _fill(PRINTER_TEMPLATE, S=printer["state"], P=printer["progress"],
                                               L=printer["time_left"])))
     return rows
 

@@ -38,8 +38,8 @@ home:
       template: '{{ states(''sensor.room_sensor_temperature'') | round(1) }}° · {{ states(''sensor.room_sensor_humidity'') | round(0) | int }}%'
     - label: 'lights'
       template: '{{ [''light.ceiling_light'', ''light.desk_lamp'', ''light.desk_light'', ''light.desk_backlight'', ''light.closet_light''] | select(''is_state'', ''on'') | list | count }} of 5'
-    - label: 'printing'
-      template: '{% if is_state(''sensor.printer_current_print_state'', ''printing'') %}{{ states(''sensor.printer_progress'') | round(0) | int }}% · {% set unit = {''s'': 1 / 60, ''min'': 1, ''h'': 60, ''d'': 1440}[state_attr(''sensor.printer_print_time_left'', ''unit_of_measurement'')] %}{% set m = (states(''sensor.printer_print_time_left'') | float(0) * unit) | round(0) | int %}{{ m // 60 }}:{{ ''%02d'' % (m % 60) }}{% endif %}'
+    - label: 'printer'
+      template: '{% set s = states(''sensor.printer_current_print_state'') %}{% if s == ''printing'' %}{{ states(''sensor.printer_progress'') | round(0) | int }}% · {% set unit = {''s'': 1 / 60, ''min'': 1, ''h'': 60, ''d'': 1440}[state_attr(''sensor.printer_print_time_left'', ''unit_of_measurement'')] %}{% set m = (states(''sensor.printer_print_time_left'') | float(0) * unit) | round(0) | int %}{{ m // 60 }}:{{ ''%02d'' % (m % 60) }}{% elif s == ''paused'' %}paused · {{ states(''sensor.printer_progress'') | round(0) | int }}%{% elif s in [''standby'', ''cancelled''] %}idle{% elif s == ''complete'' %}done{% elif s in [''unavailable'', ''unknown''] %}off{% else %}{{ s }}{% endif %}'
 
 display:
   tz: MSK-3
