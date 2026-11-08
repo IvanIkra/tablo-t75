@@ -55,7 +55,7 @@ class ClassItem:
     start: dt.time
     subject: str
     room: str
-    mark: str | None = None  # "moved" | "cancelled" | "optional": shown in place of the room
+    mark: str | None = None  # "cancelled" | "optional": in place of the room; "moved": the time is inverted
 
 
 @dataclass(frozen=True)

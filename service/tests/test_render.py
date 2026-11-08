@@ -5,7 +5,7 @@ import pytest
 
 from tablo import builder, config, protocol
 from tablo.ha import FakeHA
-from tablo.model import Deadline, ScreenModel
+from tablo.model import ClassItem, Deadline, ScreenModel
 from tablo.render import fonts, overlays, pixelfont, pixels, screen
 from tablo.render.canvas import Canvas
 from tablo.render.screen import _due_label
@@ -162,3 +162,18 @@ def test_running_script_takes_the_first_home_row():
     ha.start_script("script.closet_5min")
     after = screen.render(builder.build(NOW, CFG, ha)).to_bw()
     assert _black(before, last) == 0 < _black(after, last)  # the rows moved down by one
+
+
+def test_moved_class_keeps_its_room_and_inverts_the_time():
+    x, _, w, _ = screen.CLASSES
+    time = (x + screen.PAD, screen._row_y(screen.CLASSES, 0), 40, 16)
+    right = (x + w - screen.PAD - 40, screen._row_y(screen.CLASSES, 0), 40, 16)
+
+    def draw(mark, room="R401"):
+        model = ScreenModel(NOW.date(), classes=(ClassItem(dt.time(11, 10), "Algebra", room, mark),))
+        return screen.render(model).to_bw()
+
+    plain, moved = draw(None), draw("moved")
+    assert _black(moved, time) > 2 * _black(plain, time)  # white digits on a black plate
+    assert _black(moved, right) == _black(plain, right)  # the room, not the word
+    assert _black(draw("moved", ""), right) == 0

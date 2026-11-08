@@ -40,7 +40,7 @@ class Event:
     subject: str  # SUMMARY: the English name from infomaster's dictionary
     room: str  # "R609", "online" or ""
     kind: str  # first line of DESCRIPTION: "Lecture", "Seminar", "Consultation", "Event"
-    mark: str | None = None  # "cancelled" | "moved" | "optional", shown in place of the room
+    mark: str | None = None  # "cancelled" | "moved" | "optional" (§7.3: how each is drawn)
 
     def to_json(self) -> dict:
         return {"uid": self.uid, "start": self.start.isoformat(), "end": self.end.isoformat(),
@@ -71,7 +71,7 @@ def _local(value, tz: ZoneInfo) -> dt.datetime:
 
 
 def mark(ev, description: str) -> str | None:
-    """Cancelled first, then moved, then optional: one mark fits in place of the room."""
+    """Cancelled first, then moved, then optional: a class gets one mark."""
     status = str(ev.get("STATUS", "")).upper()
     if status == "CANCELLED":
         return "cancelled"

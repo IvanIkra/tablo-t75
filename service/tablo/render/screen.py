@@ -248,10 +248,16 @@ def _classes(c: Canvas, m: ScreenModel) -> None:
     x = CLASSES[0]
     if not m.classes:
         _row(c, CLASSES, 0, m.classes_problem or "no classes")
+    f = fonts.inter(16, "semibold")
     for i, cl in enumerate(m.classes[: _rows(CLASSES)]):
-        room = cl.mark if cl.mark else cl.room
+        moved = cl.mark == "moved"  # the room stays, the new time is drawn white on black
+        room = cl.mark if cl.mark and not moved else cl.room
         _row(c, CLASSES, i, cl.subject, room, left_x=x + CLASS_TEXT_X, right_icon=MARK_ICONS.get(cl.mark))
-        c.text((x + PAD, _row_y(CLASSES, i)), cl.start.strftime("%H:%M"), fonts.inter(16, "semibold"))
+        y = _row_y(CLASSES, i)
+        time = cl.start.strftime("%H:%M")
+        if moved:
+            c.rect(x + PAD - 3, y - 2, c.width(time, f) + 6, ROW_H, fill=BLACK)
+        c.text((x + PAD, y), time, f, fill=WHITE if moved else BLACK)
 
 
 def _home(c: Canvas, m: ScreenModel) -> None:
