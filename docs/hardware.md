@@ -112,7 +112,7 @@ The screen dimensions come from the manufacturer's drawing; the board and adapte
 
 ## Custom board (in design)
 
-The next hardware revision replaces the ESP32-L board, the DESPI-C02 adapter and the wiring with one board of our own. Status on 09.11.2026: the schematic and a first layout are in [`../pcb/`](../pcb/README.md). The schematic passes ERC; the layout passes DRC except for three connections that are still to be routed by hand (listed in the README there). Nothing is ordered or tried on hardware yet. All parts are checked against their datasheets (ESP32-S3-WROOM-1/1U v1.8, BQ2407x SLUS810N, TPS63802 SLVSEU9D, MAX17048/MAX17049, GDEY075T7 specification §5 and §11).
+The next hardware revision replaces the ESP32-L board, the DESPI-C02 adapter and the wiring with one board of our own. Status on 09.11.2026: the schematic and the layout are in [`../pcb/`](../pcb/README.md). The schematic passes ERC; the layout is fully routed and passes DRC with the schematic parity check. Nothing is ordered or tried on hardware yet. All parts are checked against their datasheets (ESP32-S3-WROOM-1/1U v1.8, BQ2407x SLUS810N, TPS63802 SLVSEU9D, MAX17048/MAX17049, GDEY075T7 specification §5 and §11).
 
 ### Goals
 
@@ -185,7 +185,7 @@ USB-C ─ ESD ─ VBUS ──▶ BQ24074 (charger with power path)
 
 The board outline comes from [`../cad/tablo.scad`](../cad/tablo.scad) and fits the current 17 mm depth; the enclosure has a `board = "custom"` variant for it (see [`../cad/README.md`](../cad/README.md#for-the-custom-board)). Coordinates below are the enclosure's: seen from the back, x to the right, y up from the bottom edge.
 
-- **One board, 173.5 × 41.6 mm** (x 2.5–176, y 8.7–50.3), 4 layers: signals on the outer layers, a GND plane on In1, a 3.3 V plane on In2 that also carries a few tracks. It sits under the switch plate like a keyboard PCB, 10.1 mm from the front: the switches clip into the plate, their pins are soldered into the board, and the board hangs on them; three posts on the cover keep it there. The lower part is under the keys, the upper part reaches behind the bottom edge of the screen.
+- **One board, 173.5 × 41.6 mm** (x 2.5–176, y 8.7–50.3), 4 layers: signals on the outer layers, solid planes: GND on In1, 3.3 V on In2. It sits under the switch plate like a keyboard PCB, 10.1 mm from the front: the switches clip into the plate, their pins are soldered into the board, and the board hangs on them; three posts on the cover keep it there. The lower part is under the keys, the upper part reaches behind the bottom edge of the screen.
 - **All the parts are on one side**, the one facing the cover; the switches go in from the other side, with their pins up (towards the screen) so that the plate screws under the keys stay clear. That side has 2.8 mm to the cover, so the cover has 1 mm pockets over the 3.2 mm module and the USB-C receptacle.
 - **The screen FPC** goes back through a 14 × 2 mm slot right under the panel's bottom edge and into the connector next to it on the parts side.
 - **The battery** lies on the cover behind the screen, above the board (x 60–120, y 52–92), in a fence printed on the cover. Its leads are soldered to two pads on the board, under the middle of the battery (x ≈ 102–106): a connector would not fit the depth.
@@ -196,7 +196,7 @@ The board outline comes from [`../cad/tablo.scad`](../cad/tablo.scad) and fits t
 
 1. Parts and pin map — done.
 2. Schematic in KiCad, project in `pcb/` — first draft done, ERC clean.
-3. Layout together with the enclosure update — first layout done (`pcb/tablo.kicad_pcb`, enclosure `board = "custom"`); three connections left to route by hand, then a review of the power loops.
+3. Layout together with the enclosure update — layout done (`pcb/tablo.kicad_pcb`, fully routed; enclosure `board = "custom"`); next a review of the power loops by eye.
 4. Order and bring-up: power and charging first, then the screen, Wi-Fi, buttons.
 5. Firmware on the S3 in mode A.
 6. Mode B: battery operation, the charge level in the status line.
