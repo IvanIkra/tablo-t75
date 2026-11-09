@@ -12,7 +12,9 @@ DRC also shows silkscreen warnings (labels over pads and the board edge) and fou
 | `tablo.kicad_pcb` | The board: 173.5 × 41.6 mm, 4 layers (signals on F.Cu and B.Cu, solid planes: GND on In1, 3.3 V on In2) |
 | `tablo.kicad_sym` | Parts missing from the KiCad libraries: TPS63802, MAX17048 |
 | `tablo.pretty/` | Footprints missing from the KiCad libraries: `Kailh_Choc_V1`, `Texas_DLA0010A_VSON-HR-10_2x3mm` (from the TPS63802 datasheet's example layout) |
-| `tools/` | The scripts that produced the drafts, the Freerouting round trip, and the export of the manufacturing files |
+| `bom-parts.csv` | Manufacturer part numbers by value and footprint, and which parts are not fitted (DNP) |
+| `order-notes.md` | Notes for the board house and the assembler; goes into the order package as its README |
+| `tools/` | The scripts that produced the drafts, the Freerouting round trip, and the order package |
 
 ## How the drafts were made
 
@@ -49,13 +51,15 @@ Freerouting 2.5.0 needs Java 25 or newer (Homebrew's `openjdk` works); its nativ
 
 `gen_board.py` takes the enclosure's numbers (key pitch, panel and FPC position) so that the board matches `cad/tablo.scad`: board coordinates are the enclosure's seen from the back, X = x and Y = 146 − y.
 
-## Checks and manufacturing files
+## Checks and the order package
 
 ```bash
 kicad-cli sch erc --severity-all pcb/tablo.kicad_sch
 kicad-cli pcb drc --schematic-parity pcb/tablo.kicad_pcb
-pcb/tools/export_fab.sh      # Gerbers + drill (zipped), pick-and-place, BOM into pcb/fab/
+pcb/tools/export_fab.sh      # the order package: pcb/fab/tablo-order/ and pcb/fab/tablo-order.zip
 ```
+
+The order package is one archive for any board house or assembler (see `order-notes.md` for what is in it): Gerbers and drill files, a BOM with manufacturer part numbers (`bom-parts.csv`; key switches, battery pads and test pads are DNP), pick-and-place for the top side, an assembly drawing, the schematic, ODB++, a STEP model, the KiCad project, and the same for an **assembly panel**. The panel (built by `tools/order_package.py panel`) adds a 12.5 mm rail along each long edge, joined by tabs with mouse bites, with fiducials and tooling holes, for assembly lines that take boards of 70 × 70 mm or more. All files use the bottom-left corner of the board (or the panel) as 0,0. The board itself has three fiducials (FID1–FID3) for assembly without the panel.
 
 Warnings about missing libraries only mean that KiCad's global library tables are not set up yet (KiCad does that on first start).
 
@@ -64,4 +68,4 @@ Warnings about missing libraries only mean that KiCad's global library tables ar
 - **Print the board 1:1 and try the real parts on it:** the Choc footprint (pin positions and the side the pins are on), the FPC connector against the panel's FPC (contact side and pin 1 — the FPC passes through the slot), the USB-C and the power switch at the enclosure's openings.
 - **Measure `below_plate`** on a real switch: it sets how deep the board sits and how much room the parts have under the cover.
 - **Review the power layout by eye:** both routers are generic. The loops of the TPS63802 (input cap, inductor, output cap) and of the e-paper booster (inductor, MOSFET, RESE resistor, diodes) should be short and on one layer; move parts and reroute by hand where they are not.
-- **Pick the exact parts for assembly** (LCSC numbers for the board house's BOM): the 0.47 µH and 10 µH inductors, the 32.768 kHz crystal and its load capacitors, the slide switch, the FPC connector.
+- **Parts in `bom-parts.csv` were checked against their datasheets** (09.11.2026): the XFL4015 terminals sit inside the 4 × 4 mm land of L1; L2 is a Sunlord SWPA4018S100MT (same land, Isat 1.3 A; the NR4018T100M is not for new designs); the crystal is the 9 pF FC-135 (Q13FC13500003). **J3 is the top-contact FH12A**: the GDEY075T7 drawing has the FPC contacts on the display side, so after the FPC bends back through the slot and over onto the parts side, its contacts face up. The FH12 and FH12A share the land pattern (Hirose catalog), so only the part changes. Stock was not checked.
