@@ -72,6 +72,21 @@ All these parameters are at the top of `tablo.scad`.
 8. **The desk leg.** Glue two pegs (`tablo-peg.stl`) into the holes on the leg's bar until the step meets the bar — then the head stands exactly 2.8 mm out. Wipe extra glue off the step and let it set. Put the heads into the wide part of the wall holes and slide the leg up until it clicks into the narrow part. The enclosure stands on its bottom end and leans on the leg; its own weight keeps the pegs in the lock. For the wall the leg simply comes off.
 9. **The wall bar (no drilling).** The bar has its own pegs, printed with it. Degrease the wall with alcohol and stick tape in strips along the crossbar and the leg of the T on the bar's smooth side. Press the bar to the wall level (the top edge is straight, the notch marks at the top and bottom are for vertical) and hold for 30 s; hang the enclosure preferably after a day, once the tape is at full strength. Put the enclosure on the pegs by the wide parts of its holes and lower it 8 mm into the lock. The top of the bar is 2 mm below the top of the enclosure and the leg of the T rests against the cover from below, so the enclosure hangs parallel to the wall 5 mm off it and the bar is not visible from the front.
 
+## For the custom board
+
+The STLs in `stl/` are for the ESP32-L kit that is in the enclosure now. For Tablo's own board ([`../pcb/`](../pcb/README.md)) build the front and the back cover with `-D 'board="custom"'`:
+
+```bash
+openscad --backend=manifold -o stl/tablo-front-custom.stl -D 'part="front"' -D 'board="custom"' tablo.scad
+openscad --backend=manifold -o stl/tablo-back-custom.stl -D 'part="back"' -D 'board="custom"' tablo.scad
+```
+
+What changes with the custom board:
+
+- **Front:** the USB-C opening moves to the board's height (36 mm from the bottom) and opens to the back edge, because the receptacle sits 13.3 mm deep, close to the cover; the slot for the power switch is 19 mm from the bottom. The thicker wall at the old ports goes away.
+- **Back cover:** no board clips and no adapter pad. Instead there is a fence for the 604060 LiPo (lying on the cover behind the screen), three posts between the keys that keep the board on the switches, 1 mm pockets over the ESP32 module and the USB-C receptacle, and vent slots over the charger.
+- The board hangs on the 8 switches: they clip into the plate and their pins are soldered into the board. Its front face is `plate_z0 + plate_t + below_plate` (10.1 mm) from the front of the enclosure, so `below_plate` has to be checked against the real switch before the board is ordered.
+
 ## Not covered yet
 
 - The ESP32-L board's holes are not used: their position is unknown, and the board is held by clips. With the board at hand, standoffs for screws can be added.

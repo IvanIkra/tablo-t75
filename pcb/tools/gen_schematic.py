@@ -300,7 +300,7 @@ R("R7", "100k", 208, 100, "+3V3", "CHG_N")
 text("Battery and fuel gauge", 222, 32)
 note("MAX17048: I2C address 0x36. ALRT wakes the board on low battery.", 222, 112)
 place("Connector_Generic:Conn_01x02", "J2", "LiPo 604060", 245, 60, {"1": "VBAT", "2": "GND"},
-      "Connector_JST:JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal")
+      "Connector_Wire:SolderWire-0.25sqmm_1x02_P4.2mm_D0.65mm_OD1.7mm")
 place("tablo:MAX17048", "U3", "MAX17048G+T10", 270, 82, {
     "3": "VBAT", "2": "VBAT", "1": "GND", "6": "GND", "4": "GND", "9": "GND",
     "8": "I2C_SDA", "7": "I2C_SCL", "5": "BAT_ALRT_N"})

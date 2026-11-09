@@ -3,6 +3,7 @@
 // Parts (set `part`):
 //   front         front shell: bezel, screen window, key plate, side ports   (print face down)
 //   back          back cover: wall keyholes, board clips, adapter pad        (print outer face down)
+//                 (with board = "custom": battery fence, board posts, pockets over the module and USB-C)
 //   leg           rear desk leg, hooks into the wall keyholes, 15°            (print bar face down)
 //   peg           mushroom peg ×2, glued into the leg bar instead of screws  (print cap down)
 //   wall_mount    T plate taped to the wall, 2 glued pegs hold the body     (print wall face down)
@@ -17,6 +18,10 @@
 // Sources: GDEY075T7 outline drawing (good-display.com/product/396.html);
 // ESP32-L(C02) 70×54 mm, DESPI-C02 41×22 mm (buy-lcd.com product page).
 // Values marked MEASURE are estimates — check them with calipers before printing.
+
+// Which electronics the enclosure is for: the Good Display ESP32-L + DESPI-C02 kit,
+// or Tablo's own board (pcb/, see docs/hardware.md "Custom board").
+board = "esp32l"; // [esp32l, custom]
 
 part = "assembly_desk"; // [assembly_desk, assembly_side, assembly_wall, assembly_back, assembly_open, exploded, front, back, leg, peg, wall_mount, key_plate, keycap, keycap_dimple, key_test]
 
@@ -72,6 +77,15 @@ switch_from_bottom = 13.8;   // power slide switch from the board's bottom edge 
 usbc_open = [12.5, 6.5];     // side opening, sized for the plug overmould
 switch_open = [8, 4];
 
+/* [Custom board (pcb/tablo.kicad_pcb), seen from the back: x as here, y up] */
+pcb2 = [2.5, 8.7, 176, 50.3];          // x0, y0, x1, y1 of the board outline
+pcb2_slot = [80.3, 23.5, 94.3, 25.5];// the screen FPC goes back through this slot
+usb2_y = 36;  sw2_y = 19;            // USB-C and power switch centres on the left end
+usb2_open = [12.5, 6.5];  sw2_open = [8, 3];
+module2 = [107, 25.9, 18, 19.2];     // ESP32-S3-WROOM-1U: x, y, w, h (3.2 mm tall)
+battery2 = [60, 52, 60.5, 40.5, 6];  // LiPo 604060 bay: x, y, w, h, thickness
+pocket_d = 1.0;                      // pockets in the cover over the tall parts
+
 /* [Adapter DESPI-C02, 41×22, on tape] */
 adp_w = 41;  adp_h = 22;  adp_pad_h = 6;   // keeps the adapter where it was, within reach of the FPC
 
@@ -118,15 +132,22 @@ plate_screw_y = wall + 2.6;                          // below the key pockets, w
 plate_boss_h = max(0, plate_screw_l - plate_t - insert_l);   // raised pads so a 6 mm screw ends inside the insert
 board_comp_z = inner_back - comp_h - 0.3;     // component face (faces the back cover)
 board_sold_z = board_comp_z - pcb_t;          // solder face (faces the panel)
-usbc_y = board_y + usbc_from_bottom;  usbc_z = board_comp_z + 1.6;
-switch_y = board_y + switch_from_bottom;
+pcb2_z = plate_z0 + plate_t + below_plate;    // custom board: face towards the plate
+pcb2_back = pcb2_z + pcb_t;                    // custom board: component face
+custom = board == "custom";
+usbc_y = custom ? usb2_y : board_y + usbc_from_bottom;
+usbc_z = custom ? pcb2_back + 1.6 : board_comp_z + 1.6;
+switch_y = custom ? sw2_y : board_y + switch_from_bottom;
+switch_z = custom ? pcb2_back + 0.8 : usbc_z;
 adp_x = fpc_x - adp_w / 2;  adp_y = pan_y0 + 9;
 function kx(i) = W / 2 - (i - (n_keys - 1) / 2) * pitch;   // key 0 = leftmost seen from the front
 boss_pts = [[5.5, 5], [W - 5.5, 5], [5.5, H - 5], [W - 5.5, H - 5]];
 
 assert(key_cy - choc_house / 2 > wall + 0.5, "keys collide with the bottom wall");
 assert(plate_z0 + plate_t + below_plate + 1.5 < inner_back, "too thin for the switches");
-assert(board_sold_z - (front_t + tape_t + pan_t) > 1.2, "board touches the panel");
+assert(custom || board_sold_z - (front_t + tape_t + pan_t) > 1.2, "board touches the panel");
+assert(!custom || pcb2_back + 3.2 + 0.3 < inner_back + pocket_d, "custom board: no room for the module");
+assert(!custom || pcb2[1] > boss_pts[0][1] + boss_d / 2, "custom board hits the corner bosses");
 
 // ---------- helpers ----------
 module rrect(w, h, r) { translate([r, r]) offset(r) square([w - 2 * r, h - 2 * r]); }
@@ -153,8 +174,10 @@ module front_shell() {
       translate([act_x0 - 1, wall - eps, 0]) cube([act_w + 2, key_block_y1 - wall, key_block_d]);   // key plate block
       panel_rails();
       for (p = boss_pts) translate([p[0], p[1], 0]) cylinder(d = boss_d, h = inner_back);
-      translate([wall - eps, usbc_y - 10, front_t]) cube([2, 20, inner_back - front_t]);             // thicker wall at the ports
-      translate([wall - eps, switch_y - 7, front_t]) cube([2, 14, inner_back - front_t]);
+      if (!custom) {
+        translate([wall - eps, usbc_y - 10, front_t]) cube([2, 20, inner_back - front_t]);             // thicker wall at the ports
+        translate([wall - eps, switch_y - 7, front_t]) cube([2, 14, inner_back - front_t]);
+      }
     }
     // window, chamfered outside
     translate([act_x0 + act_w / 2, act_y0 + act_h / 2, 0]) hull() {
@@ -175,8 +198,7 @@ module front_shell() {
       translate([0, 0, inner_back - insert_l - 0.5]) cylinder(d = insert_d, h = insert_l + 1);                 // insert
       translate([0, 0, inner_back - (cover_screw_l - back_t) - 1.5]) cylinder(d = screw_clear, h = cover_screw_l); // room for the screw tip
     }
-    side_hole(usbc_y, usbc_z, usbc_open);
-    side_hole(switch_y, usbc_z, switch_open);
+    ports();
   }
 }
 
@@ -197,8 +219,16 @@ module back_cover() {
     union() {
       translate([0, 0, T]) mirror([0, 0, 1]) translate([0, 0, 0]) chamfered_slab(0, back_t, back_chamfer);
       for (s = [-1, 1]) translate([W / 2 + s * kh_dx - 8, kh_y - 6.5, inner_back - 4 + eps]) cube([16, 23, 4]);
-      board_clips();
-      translate([adp_x - 1, adp_y - 1, inner_back - adp_pad_h + eps]) cube([adp_w + 2, adp_h + 2, adp_pad_h]);   // tape pad for DESPI-C02
+      if (custom) custom_cover_inside();
+      else {
+        board_clips();
+        translate([adp_x - 1, adp_y - 1, inner_back - adp_pad_h + eps]) cube([adp_w + 2, adp_h + 2, adp_pad_h]);   // tape pad for DESPI-C02
+      }
+    }
+    if (custom) {
+      ports();
+      for (r = [[module2[0] - 1, module2[1] - 1, module2[2] + 2, module2[3] + 2], [wall, usbc_y - 6, 12, 12]])
+        translate([r[0], r[1], inner_back - eps]) cube([r[2], r[3], pocket_d]);   // pockets over the module and USB-C
     }
     for (p = boss_pts) translate([p[0], p[1], inner_back - 1]) {
       cylinder(d = clear_d, h = back_t + 2);
@@ -209,9 +239,29 @@ module back_cover() {
       hull() for (dy = [0, kh_len]) translate([0, kh_y + dy, inner_back - 1]) cylinder(d = kh_slot, h = back_t + 2);
       hull() for (dy = [0, kh_len]) translate([0, kh_y + dy, inner_back - 3]) cylinder(d = kh_d + 0.5, h = 3 + eps);
     }
-    // vent slots over the board
-    for (i = [0 : 5]) translate([board_x + 12 + i * 8, board_y + 12, inner_back - 1]) hull() for (dy = [0, 30]) translate([0, dy, 0]) cylinder(d = 2.4, h = back_t + 2);
+    // vent slots over the board (over the charger and the regulator on the custom board)
+    if (custom) for (i = [0 : 3]) translate([18 + i * 8, 20, inner_back - 1]) hull() for (dy = [0, 20]) translate([0, dy, 0]) cylinder(d = 2.4, h = back_t + 2);
+    else for (i = [0 : 5]) translate([board_x + 12 + i * 8, board_y + 12, inner_back - 1]) hull() for (dy = [0, 30]) translate([0, dy, 0]) cylinder(d = 2.4, h = back_t + 2);
   }
+}
+
+// the side openings for USB-C and the power switch; on the custom board they reach the back edge
+module ports() {
+  side_hole(usbc_y, usbc_z, custom ? usb2_open : usbc_open);
+  side_hole(switch_y, switch_z, custom ? sw2_open : switch_open);
+  if (custom) translate([-1, usbc_y - usb2_open[0] / 2, usbc_z]) cube([wall + 4, usb2_open[0], T]);
+}
+
+// custom board: a fence keeps the battery in place, posts keep the board on the switches
+module custom_cover_inside() {
+  bx = battery2[0];  by = battery2[1];  bw = battery2[2];  bh = battery2[3];
+  fence = inner_back - (front_t + tape_t + pan_t + 0.5) - battery2[4];   // the battery lies on the cover
+  difference() {
+    translate([bx - 1.2, by - 1.2, inner_back - 2.5 + eps]) cube([bw + 2.4, bh + 2.4, 2.5]);
+    translate([bx, by, inner_back - 3]) cube([bw, bh, 4]);
+    translate([bx + 36, by - 2, inner_back - 3]) cube([10, 4, 4]);         // gap for the battery leads, over the board pads
+  }
+  for (g = [1.5, 3.5, 5.5]) translate([kx(g), 13, pcb2_back + 0.3]) cylinder(d = 4, h = inner_back - pcb2_back - 0.3 + eps);
 }
 
 // clips hold the board by its long edges (headers removed); a backstop takes the plug force
@@ -345,6 +395,18 @@ module panel_dummy() {
   color("#c8a24a") translate([fpc_x - fpc_w / 2, pan_y0 - 2.5, front_t + tape_t + pan_t + 0.2]) cube([fpc_w, 0.2, 2.5]);
 }
 module board_dummy() {
+  if (custom) custom_board_dummy(); else esp32l_dummy();
+}
+module custom_board_dummy() {
+  color("#1f6b3a") translate([0, 0, pcb2_z]) linear_extrude(pcb_t) difference() {
+    translate([pcb2[0], pcb2[1]]) square([pcb2[2] - pcb2[0], pcb2[3] - pcb2[1]]);
+    translate([pcb2_slot[0], pcb2_slot[1]]) square([pcb2_slot[2] - pcb2_slot[0], pcb2_slot[3] - pcb2_slot[1]]);
+  }
+  color("#1a1a1a") translate([module2[0], module2[1], pcb2_back]) cube([module2[2], module2[3], 3.2]);
+  color("#cfcfcf") translate([pcb2[0], usbc_y - 4.5, pcb2_back]) cube([7.3, 9, 3.2]);
+  color("#3b4a8c") translate([battery2[0], battery2[1], inner_back - battery2[4]]) cube([battery2[2] - 0.5, battery2[3] - 0.5, battery2[4]]);
+}
+module esp32l_dummy() {
   color("#245aa8") translate([board_x, board_y, board_sold_z]) cube([board_w, board_h, pcb_t]);
   color("#cfcfcf") translate([board_x - 0.5, usbc_y - 4.5, board_comp_z]) cube([7.5, 9, 3.2]);
   color("#1a1a1a") translate([board_x + 30, board_y + 18, board_comp_z]) cube([18, 25.5, 3.1]);

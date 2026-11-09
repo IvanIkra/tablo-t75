@@ -4739,7 +4739,7 @@
 		)
 		(property
 			"Footprint"
-			"Connector_JST:JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal"
+			"Connector_Wire:SolderWire-0.25sqmm_1x02_P4.2mm_D0.65mm_OD1.7mm"
 			(at 245.11 59.69 0)
 			(show_name no)
 			(do_not_autoplace no)
