@@ -137,7 +137,7 @@ The board knows its power source from the charger's power-good signal and picks 
 
 ```
 USB-C ─ ESD ─ VBUS ──▶ BQ24074 (charger with power path)
-                         ├── BAT ── LiPo 3.7 V, ~2000 mAh (JST-PH)
+                         ├── BAT ── LiPo 3.7 V, ~2000 mAh (leads soldered to pads)
                          │           └── MAX17048 (fuel gauge, I²C)
                          └── OUT ──▶ TPS63802 (buck-boost, 3.3 V)
                                        ├── ESP32-S3-WROOM-1U-N16R8 ── U.FL ── adhesive FPC antenna
@@ -185,7 +185,7 @@ USB-C ─ ESD ─ VBUS ──▶ BQ24074 (charger with power path)
 
 The board outline comes from [`../cad/tablo.scad`](../cad/tablo.scad) and fits the current 17 mm depth; the enclosure has a `board = "custom"` variant for it (see [`../cad/README.md`](../cad/README.md#for-the-custom-board)). Coordinates below are the enclosure's: seen from the back, x to the right, y up from the bottom edge.
 
-- **One board, 173.5 × 41.6 mm** (x 2.5–176, y 8.7–50.3), 4 layers: signals on the outer layers, solid planes: GND on In1, 3.3 V on In2. It sits under the switch plate like a keyboard PCB, 10.1 mm from the front: the switches clip into the plate, their pins are soldered into the board, and the board hangs on them; three posts on the cover keep it there. The lower part is under the keys, the upper part reaches behind the bottom edge of the screen.
+- **One board, 173.5 × 41.6 mm** (x 2.5–176, y 8.7–50.3), 4 layers: signals on the outer layers, solid planes: GND on In1, 3.3 V on In2. It sits under the switch plate like a keyboard PCB, 10.1 mm from the front: the switches clip into the plate, their pins are soldered into the board, and the board hangs on them, with no screws. Seven posts on the cover keep it there: three between the keys and four along the top edge, behind the screen. A stop on the cover behind the far end takes the force of plugging in USB-C; pulling the plug out, the board rests against the side wall. The lower part is under the keys, the upper part reaches behind the bottom edge of the screen.
 - **All the parts are on one side**, the one facing the cover; the switches go in from the other side, with their pins up (towards the screen) so that the plate screws under the keys stay clear. That side has 2.8 mm to the cover, so the cover has 1 mm pockets over the 3.2 mm module and the USB-C receptacle.
 - **The screen FPC** goes back through a 14 × 2 mm slot right under the panel's bottom edge and into the connector next to it on the parts side.
 - **The battery** lies on the cover behind the screen, above the board (x 60–120, y 52–92), in a fence printed on the cover. Its leads are soldered to two pads on the board, under the middle of the battery (x ≈ 102–106): a connector would not fit the depth.
@@ -223,14 +223,16 @@ A parametric OpenSCAD model with all dimensions in one file: [`../cad/tablo.scad
 
 ### Printed parts
 
+The files are in `cad/stl/esp32l/` for the current ESP32-L kit and in `cad/stl/custom/` for the custom board; only the front and the back cover differ (on the custom board the cover has the battery fence and the board posts instead of the clips and the adapter pad).
+
 | Part | File | Print orientation | Notes |
 |---|---|---|---|
-| Key test | `stl/tablo-key_test.stl` | as is | **Print first.** A piece of wall and plate for 2 keys, plus one hole for a heat-set insert |
-| Front | `stl/tablo-front.stl` | face down | Screen window, panel guides, switch pockets, bosses, port cut-outs |
-| Switch plate | `stl/tablo-key_plate.stl` | flat | 1.3 mm, 100% infill. A separate part because the top of a switch (15 × 15 mm) does not pass through the keycap cut-out |
-| Back cover | `stl/tablo-back.stl` | outside down | Wall holes, board clips, the adapter pad, ventilation |
-| Back leg | `stl/tablo-leg.stl` | bar down | For the desk, 15° tilt |
-| Keycaps | `stl/tablo-keycap.stl` × 7, `stl/tablo-keycap_dimple.stl` × 1 | top down | 0.12 mm layers |
+| Key test | `tablo-key_test.stl` | as is | **Print first.** A piece of wall and plate for 2 keys, plus one hole for a heat-set insert |
+| Front | `tablo-front.stl` | face down | Screen window, panel guides, switch pockets, bosses, port cut-outs |
+| Switch plate | `tablo-key_plate.stl` | flat | 1.3 mm, 100% infill. A separate part because the top of a switch (15 × 15 mm) does not pass through the keycap cut-out |
+| Back cover | `tablo-back.stl` | outside down | Wall holes, board clips, the adapter pad, ventilation |
+| Back leg | `tablo-leg.stl` | bar down | For the desk, 15° tilt |
+| Keycaps | `tablo-keycap.stl` × 7, `tablo-keycap_dimple.stl` × 1 | top down | 0.12 mm layers |
 
 PLA or PETG, 0.2 mm layers, 3 perimeters, no supports.
 
@@ -264,7 +266,7 @@ PLA or PETG, 0.2 mm layers, 3 perimeters, no supports.
 To rebuild a part:
 
 ```bash
-openscad --backend=manifold -o cad/stl/tablo-front.stl -D 'part="front"' cad/tablo.scad
+openscad --backend=manifold -o cad/stl/esp32l/tablo-front.stl -D 'part="front"' -D 'board="esp32l"' cad/tablo.scad
 ```
 
 ---

@@ -1,7 +1,12 @@
 # Tablo T75 — enclosure: printing and assembly
 
-The model is `tablo.scad`, parametric, OpenSCAD 2026+. The STLs are in `stl/`, the previews in `preview/`.
-To rebuild a part: `openscad --backend=manifold -o stl/tablo-front.stl -D 'part="front"' tablo.scad`
+The model is `tablo.scad`, parametric, OpenSCAD 2026+. The previews are in `preview/`. The STLs come in two full sets, one per board (the `board` parameter):
+
+- `stl/esp32l/` — for the Good Display ESP32-L kit with the DESPI-C02 adapter, which is in the enclosure now;
+- `stl/custom/` — for Tablo's own board ([`../pcb/`](../pcb/README.md)), see "For the custom board" below.
+
+Only the front and the back cover differ between the sets; the other parts are the same in both.
+To rebuild a part: `openscad --backend=manifold -o stl/esp32l/tablo-front.stl -D 'part="front"' -D 'board="esp32l"' tablo.scad` (or `custom` in both places).
 
 The enclosure is 185 × 146 × 17 mm and flat: it hangs on the wall on two screws or, without drilling, on the T-shaped `wall_mount` bar glued to the wall. For the desk there is a back leg like a photo frame's: it hooks into the same holes, holds the screen at 15° and is not visible from the front.
 Chamfers are 1.5 mm on the front edge, 1 mm on the cover edge and 0.5 mm on the key cut-outs (the `front_chamfer`, `back_chamfer`, `pill_chamfer` parameters; 0 means no chamfer).
@@ -74,17 +79,18 @@ All these parameters are at the top of `tablo.scad`.
 
 ## For the custom board
 
-The STLs in `stl/` are for the ESP32-L kit that is in the enclosure now. For Tablo's own board ([`../pcb/`](../pcb/README.md)) build the front and the back cover with `-D 'board="custom"'`:
+The set for Tablo's own board ([`../pcb/`](../pcb/README.md)) is in `stl/custom/`, built with `-D 'board="custom"'`. To rebuild both sets:
 
 ```bash
-openscad --backend=manifold -o stl/tablo-front-custom.stl -D 'part="front"' -D 'board="custom"' tablo.scad
-openscad --backend=manifold -o stl/tablo-back-custom.stl -D 'part="back"' -D 'board="custom"' tablo.scad
+for b in esp32l custom; do for p in front back key_plate key_test keycap keycap_dimple leg peg wall_mount; do
+  openscad --backend=manifold -o stl/$b/tablo-$p.stl -D "part=\"$p\"" -D "board=\"$b\"" tablo.scad
+done; done
 ```
 
 What changes with the custom board:
 
 - **Front:** the USB-C opening moves to the board's height (36 mm from the bottom) and opens to the back edge, because the receptacle sits 13.3 mm deep, close to the cover; the slot for the power switch is 19 mm from the bottom. The thicker wall at the old ports goes away.
-- **Back cover:** no board clips and no adapter pad. Instead there is a fence for the 604060 LiPo (lying on the cover behind the screen), three posts between the keys that keep the board on the switches, 1 mm pockets over the ESP32 module and the USB-C receptacle, and vent slots over the charger.
+- **Back cover:** no board clips and no adapter pad. Instead there is a fence for the 604060 LiPo (lying on the cover behind the screen), seven Ø4 mm posts that stop 0.3 mm short of the board (three between the keys keep it on the switches, four along its top edge, on spots free of parts, keep the part behind the screen still), a backstop behind the board's far end that takes the force of plugging in USB-C (pulling the plug out, the side wall takes it), 1 mm pockets over the ESP32 module and the USB-C receptacle, and vent slots over the charger.
 - The board hangs on the 8 switches: they clip into the plate and their pins are soldered into the board. Its front face is `plate_z0 + plate_t + below_plate` (10.1 mm) from the front of the enclosure, so `below_plate` has to be checked against the real switch before the board is ordered.
 
 ## Not covered yet

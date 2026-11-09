@@ -85,6 +85,10 @@ usb2_open = [12.5, 6.5];  sw2_open = [8, 3];
 module2 = [107, 25.9, 18, 19.2];     // ESP32-S3-WROOM-1U: x, y, w, h (3.2 mm tall)
 battery2 = [60, 52, 60.5, 40.5, 6];  // LiPo 604060 bay: x, y, w, h, thickness
 pocket_d = 1.0;                      // pockets in the cover over the tall parts
+post2_top = [[12, 46], [60, 44], [88, 38.5], [160, 45]];  // cover posts along the board's top edge, on spots free of parts
+post2_d = 4;  post2_gap = 0.3;       // cover posts: diameter, gap to the board
+stop2 = [16, 2];                     // backstop at the board's far end: length along y, thickness
+stop2_gap = 0.3;                     // gap to the board edge
 
 /* [Adapter DESPI-C02, 41×22, on tape] */
 adp_w = 41;  adp_h = 22;  adp_pad_h = 6;   // keeps the adapter where it was, within reach of the FPC
@@ -141,6 +145,7 @@ switch_y = custom ? sw2_y : board_y + switch_from_bottom;
 switch_z = custom ? pcb2_back + 0.8 : usbc_z;
 adp_x = fpc_x - adp_w / 2;  adp_y = pan_y0 + 9;
 function kx(i) = W / 2 - (i - (n_keys - 1) / 2) * pitch;   // key 0 = leftmost seen from the front
+post2 = concat([for (g = [1.5, 3.5, 5.5]) [kx(g), 13]], post2_top);   // posts between the keys + along the top
 boss_pts = [[5.5, 5], [W - 5.5, 5], [5.5, H - 5], [W - 5.5, H - 5]];
 
 assert(key_cy - choc_house / 2 > wall + 0.5, "keys collide with the bottom wall");
@@ -252,7 +257,8 @@ module ports() {
   if (custom) translate([-1, usbc_y - usb2_open[0] / 2, usbc_z]) cube([wall + 4, usb2_open[0], T]);
 }
 
-// custom board: a fence keeps the battery in place, posts keep the board on the switches
+// custom board: a fence keeps the battery in place, posts keep the board on the switches and its top edge still,
+// a backstop takes the USB-C plug force
 module custom_cover_inside() {
   bx = battery2[0];  by = battery2[1];  bw = battery2[2];  bh = battery2[3];
   fence = inner_back - (front_t + tape_t + pan_t + 0.5) - battery2[4];   // the battery lies on the cover
@@ -261,7 +267,9 @@ module custom_cover_inside() {
     translate([bx, by, inner_back - 3]) cube([bw, bh, 4]);
     translate([bx + 36, by - 2, inner_back - 3]) cube([10, 4, 4]);         // gap for the battery leads, over the board pads
   }
-  for (g = [1.5, 3.5, 5.5]) translate([kx(g), 13, pcb2_back + 0.3]) cylinder(d = 4, h = inner_back - pcb2_back - 0.3 + eps);
+  for (p = post2) translate([p[0], p[1], pcb2_back + post2_gap]) cylinder(d = post2_d, h = inner_back - pcb2_back - post2_gap + eps);
+  // the USB-C plug pushes the board towards +x: a stop behind the far end takes it (pulling out, the side wall does)
+  translate([pcb2[2] + stop2_gap, usb2_y - stop2[0] / 2, pcb2_z - 1]) cube([stop2[1], stop2[0], inner_back - pcb2_z + 1 + eps]);
 }
 
 // clips hold the board by its long edges (headers removed); a backstop takes the plug force
